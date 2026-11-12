@@ -1,0 +1,6 @@
+# frozen_string_literal: true
+
+# Runs the suite on SitePrism 5: BUNDLE_GEMFILE=gemfiles/site_prism_5.gemfile
+eval_gemfile "../Gemfile"
+
+gem "site_prism", "~> 5.1"
