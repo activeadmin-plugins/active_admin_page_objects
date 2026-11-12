@@ -27,6 +27,17 @@ module ActiveAdminPageObjects
       dropdown = open_tom_select(scope)
       tom_select_search_input(scope, dropdown).send_keys(search) if search
       dropdown.find(sel(:tom_select_option), exact_text: label).click
+      close_tom_select(scope)
+    end
+
+    # A multiple select keeps the dropdown open, and it can cover the next
+    # element a spec clicks, such as the filters' submit button.
+    def close_tom_select(scope)
+      dropdown = sel(:tom_select_dropdown)
+      return unless scope.has_css?(dropdown, visible: true, wait: false)
+
+      scope.session.active_element.send_keys(:escape)
+      scope.assert_no_selector(dropdown, visible: true)
     end
 
     def open_tom_select(scope)

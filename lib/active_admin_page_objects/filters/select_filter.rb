@@ -20,6 +20,7 @@ module ActiveAdminPageObjects
       dropdown = open_tom_select(root_element)
       tom_select_search_input(root_element, dropdown).send_keys(value)
       dropdown.find(sel(:tom_select_create), text: value).click
+      close_tom_select(root_element)
     end
 
     # Opens the Tom Select dropdown without choosing, for #has_option?.
