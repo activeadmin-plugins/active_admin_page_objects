@@ -4,7 +4,8 @@ import "tom-select"
 if (window.location.pathname.startsWith("/admin/orders")) {
   document.querySelectorAll(".filters-form select").forEach((select) => {
     new window.TomSelect(select, {
-      plugins: ["dropdown_input"],
+      // Value selects get remove_button, which adds a "×" to the item text.
+      plugins: select.dataset.searchMethods === undefined ? ["dropdown_input", "remove_button"] : ["dropdown_input"],
       create: select.dataset.create === "true",
       allowEmptyOption: true,
       placeholder: "Choose"

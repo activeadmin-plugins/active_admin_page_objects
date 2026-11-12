@@ -61,13 +61,25 @@ module ActiveAdminPageObjects
     # True when the control shows +label+ as chosen. Tom Select: the rendered
     # item, before any submit; plain <select>: the selected option.
     def has_item?(label)
-      tom_select?(root_element) ? has_css?(sel(:tom_select_item), exact_text: label) : has_selected?(label)
+      return has_selected?(label) unless tom_select?(root_element)
+
+      has_css?(sel(:tom_select_item)) { |item| item_label(item) == label }
     end
 
     # Waits until the control no longer shows +label+ as chosen.
     def has_no_item?(label)
-      tom_select?(root_element) ? has_no_css?(sel(:tom_select_item), exact_text: label) : has_no_selected?(label)
+      return has_no_selected?(label) unless tom_select?(root_element)
+
+      has_no_css?(sel(:tom_select_item)) { |item| item_label(item) == label }
     end
+
+    # Tom Select's remove_button plugin appends an <a class="remove"> to each
+    # item, whose text ("×" by default) is part of the item's text.
+    def item_label(item)
+      remove = item.all(".remove", wait: false).map(&:text).join
+      item.text.delete_suffix(remove).strip
+    end
+    private :item_label
 
     # The Tom Select placeholder text.
     # @return [String, nil]
