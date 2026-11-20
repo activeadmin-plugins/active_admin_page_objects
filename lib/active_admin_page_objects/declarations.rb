@@ -38,7 +38,7 @@ module ActiveAdminPageObjects
       private
 
       def declare(key, label, type = nil)
-        own_declarations[ActiveAdminPageObjects.slug(key)] = { label: label.to_s, type: type }.freeze
+        own_declarations[ActiveAdminPageObjects.slug(key)] = { label: label&.to_s, type: type }.freeze
       end
 
       def own_declarations
@@ -56,6 +56,8 @@ module ActiveAdminPageObjects
       raise ArgumentError, "the section declares no labels" if declarations.empty?
 
       declarations.each_with_object({}) do |(key, declaration), mismatches|
+        next if declaration[:label].nil?
+
         actual = declared_label_text(key)
         mismatches[key] = actual unless actual == declaration[:label]
       end
@@ -89,16 +91,23 @@ module ActiveAdminPageObjects
       element && ActiveAdminPageObjects.squish(element.text(:all))
     end
 
-    # The label of the formtastic wrapper +wrapper_css+, without the required
-    # marker. The first `label` is the input's own: radio and check_boxes
-    # wrappers carry it in the legend, before the labels of the choices.
+    # The label of the formtastic wrapper +wrapper_css+. The first `label` is
+    # the input's own: radio and check_boxes wrappers carry it in the legend,
+    # before the labels of the choices.
     def input_label_text(wrapper_css)
       label = first(:css, "#{wrapper_css} label", minimum: 0, wait: false, visible: :all)
-      return unless label
+      label && own_text(label)
+    end
 
-      marker = label.first(:css, "abbr", minimum: 0, wait: false, visible: :all)
-      text = ActiveAdminPageObjects.squish(label.text(:all))
-      marker ? text.delete_suffix(ActiveAdminPageObjects.squish(marker.text(:all))).strip : text
+    # The text of +element+ without the text of the links, buttons and `abbr`
+    # inside it: formtastic's required marker, and controls that plugins
+    # append to labels (the date range preset's "Set range").
+    def own_text(element)
+      text = element.text(:all)
+      element.all(:css, "a, button, abbr", minimum: 0, wait: false, visible: :all).each do |child|
+        text = text.sub(child.text(:all), "")
+      end
+      ActiveAdminPageObjects.squish(text)
     end
   end
 end

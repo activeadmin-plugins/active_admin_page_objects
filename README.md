@@ -451,7 +451,7 @@ SitePrism 5 and 6 turn the block into a subclass of the section class. A named s
 `have_declared_columns`, `have_declared_filters`, `have_declared_rows` and `have_declared_fields` compare each declared label with the text in the DOM. The comparison is exact and case-sensitive, so `"External id"` does not match `"External ID"`. Only whitespace is normalized.
 
 - CSS `text-transform` does not change the result, on any driver.
-- The required marker (`*`) of a form label is not part of the label.
+- In filter and form labels, the text of links, buttons and `abbr` elements is not part of the label. That drops the required marker (`*`) and controls that plugins append, such as the date range preset's "Set range" link.
 - The order is not checked. Elements that are on the page but not declared are ignored.
 - They wait like the other matchers. `have_no_declared_columns` and the other three wait until a label differs.
 - They raise `ArgumentError` on a section that declares nothing.
@@ -470,6 +470,8 @@ A section that declares anything raises `ArgumentError` for every other key, bef
 - `Table`: `sort_by` and `has_sortable_column?`. Its rows: `cell`, `has_cell?`, `has_no_cell?` and `status_tag`.
 - `Filters`: `filter`.
 - `Form`: `input`, `fill`, `choose`, `has_input_error?` and `has_no_input_error?`.
+
+A key declared without a label is known but not compared: `row :notes` lets `have_no_row(:notes)` check that the row is absent, and `column :actions` covers the untitled actions column.
 
 Keys compare as everywhere else: `:external_id`, `"external_id"` and `"External ID"` are the same key.
 

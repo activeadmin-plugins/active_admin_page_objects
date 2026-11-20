@@ -13,8 +13,9 @@ module ActiveAdminPageObjects
     selector_key :table
 
     class << self
-      # Declares column +key+ with the +label+ of its header.
-      def column(key, label)
+      # Declares column +key+ with the +label+ of its header. Without a
+      # label the key is known but its header is not compared.
+      def column(key, label = nil)
         declare(key, label)
       end
     end

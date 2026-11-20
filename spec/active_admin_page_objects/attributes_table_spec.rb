@@ -29,6 +29,15 @@ RSpec.describe ActiveAdminPageObjects::AttributesTable do
       expect(show.attributes_table.declared_label_mismatches).to eq({})
     end
 
+    it "checks the absence of a row declared without a label" do
+      known = declared_table do
+        row :name, "Name"
+        row :notes
+      end
+      expect(known).to have_no_row(:notes)
+      expect(known).to have_declared_rows
+    end
+
     it "compares a declared label exactly" do
       wrong_case = declared_table do
         row :name, "Name"

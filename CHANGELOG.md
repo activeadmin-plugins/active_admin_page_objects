@@ -4,7 +4,7 @@
 
 ### Added
 
-- Declared labels: `AttributesTable.row(key, label)`, `Table.column(key, label)`, `Filters.filter(key, label, type = nil)` and `Form.field(key, label, type = nil)` declare a section's keys and labels, also inside a `section ... do` block. `have_declared_rows`, `have_declared_columns`, `have_declared_filters` and `have_declared_fields` compare the labels with the page exactly. `declared_label_mismatches` returns the labels that differ.
+- Declared labels: `AttributesTable.row(key, label = nil)`, `Table.column(key, label = nil)`, `Filters.filter(key, label = nil, type = nil)` and `Form.field(key, label = nil, type = nil)` declare a section's keys and labels, also inside a `section ... do` block. `have_declared_rows`, `have_declared_columns`, `have_declared_filters` and `have_declared_fields` compare the labels with the page exactly. `declared_label_mismatches` returns the labels that differ.
 - A section with declarations raises `ArgumentError` for an undeclared key before it queries the page.
 - `Filters#filter` and `Form#input` raise `Capybara::ExpectationNotMet` when the input is declared with another class.
 - Typed form inputs: `Form#input` and `HasMany::Fieldset#input` return `Form::StringInput`, `SelectInput`, `BooleanInput`, `RadioInput`, `CheckBoxesInput` or `DatePickerInput` by the formtastic input class. `Form.register_type(input_class, klass)` adds one.

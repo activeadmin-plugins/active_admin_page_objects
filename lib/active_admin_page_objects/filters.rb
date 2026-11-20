@@ -17,7 +17,7 @@ module ActiveAdminPageObjects
     class << self
       # Declares filter +key+ with its +label+. With +type+, `filter(key)`
       # raises unless the page has a filter of that class.
-      def filter(key, label, type = nil)
+      def filter(key, label = nil, type = nil)
         declare(key, label, type)
       end
 
