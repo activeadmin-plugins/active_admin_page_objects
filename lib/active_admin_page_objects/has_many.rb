@@ -94,12 +94,12 @@ module ActiveAdminPageObjects
 
     # True when there are +count+ fieldsets, or any when +count+ is nil.
     def has_fieldsets?(count: nil, **options)
-      has_css?(sel(:has_many_fieldset), **(count ? { count: count } : {}), **options)
+      has_css?(sel(:has_many_fieldset), **(count.nil? ? {} : { count: count }), **options)
     end
 
     # Waits until there are no fieldsets, or not +count+ fieldsets.
     def has_no_fieldsets?(count: nil, **options)
-      has_no_css?(sel(:has_many_fieldset), **(count ? { count: count } : {}), **options)
+      has_no_css?(sel(:has_many_fieldset), **(count.nil? ? {} : { count: count }), **options)
     end
   end
 end

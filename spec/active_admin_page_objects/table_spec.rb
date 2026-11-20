@@ -23,6 +23,8 @@ RSpec.describe ActiveAdminPageObjects::Table do
       expect(table).to have_rows(count: 3)
       expect(table).to have_rows
       expect(table).to have_no_rows(count: 2)
+      expect(table).to have_rows(text: customers.first.name)
+      expect(table).to have_no_rows(text: "No such customer")
       expect(table.rows.size).to eq(3)
     end
 
