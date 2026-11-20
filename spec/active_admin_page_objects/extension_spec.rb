@@ -89,11 +89,12 @@ RSpec.describe "Extending sections" do
       ChooseOptionSpy.chosen.clear
     end
 
-    it "registers a selector for a removed key" do
-      ActiveAdminPageObjects.register_selectors(tabs: "[data-test-page-header]")
-      show = Pages::CustomerShow.new
-      show.load(id: create_customer.id)
-      expect(show).to have_tabs
+    it "registers a selector for a key ActiveAdmin 3 lacks" do
+      ActiveAdminPageObjects.register_selectors(dark_mode_toggle: "#site_title")
+      dashboard = Pages::Dashboard.new
+      dashboard.load
+      expect(dashboard).to have_dark_mode_toggle
+      expect(dashboard).to have_theme_switcher
     end
 
     it "adds a section to every class that includes Layout" do

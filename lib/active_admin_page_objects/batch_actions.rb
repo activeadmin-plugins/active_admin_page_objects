@@ -2,7 +2,8 @@
 
 module ActiveAdminPageObjects
   # The batch-action form around the index table. Needs a JavaScript driver:
-  # ActiveAdmin's JavaScript enables the menu and submits the form.
+  # ActiveAdmin's JavaScript enables the menu once a row is selected, and
+  # submits the form.
   class BatchActions < Section
     selector_key :batch_actions
 
@@ -12,16 +13,20 @@ module ActiveAdminPageObjects
     end
 
     # Opens the batch-action menu and runs the action labelled +label+
-    # ("Delete Selected"), or with the batch-action name (`:destroy`). Accepts
-    # the browser confirmation when the action has one.
-    def apply(label)
-      find(:active_admin, :batch_actions_button).click
+    # ("Delete Selected"), or with the batch-action name (`:destroy`).
+    #
+    # An action with a `confirm:` or a `form:` opens ActiveAdmin's modal
+    # dialog instead of submitting. #apply then sets each of +inputs+ in the
+    # dialog by field name (`status: "pending"` picks the option of a select,
+    # or types into an input) and clicks OK.
+    def apply(label, inputs = {})
+      button = find(:active_admin, :batch_actions_button)
+      # The button toggles the menu, so leave an open menu open.
+      button.click unless has_css?(sel(:batch_actions_menu), wait: false)
       item = action_item(label)
-      if item[:"data-confirm"].to_s.empty?
-        item.click
-      else
-        accept_confirm(item[:"data-confirm"]) { item.click }
-      end
+      opens_dialog = !item[:"data-confirm"].to_s.empty?
+      item.click
+      confirm_dialog(inputs) if opens_dialog
     end
 
     # True when the menu has an action labelled +label+ or named +label+.
@@ -35,6 +40,13 @@ module ActiveAdminPageObjects
     end
 
     private
+
+    # The dialog is appended to <body>, outside this section.
+    def confirm_dialog(inputs)
+      dialog = ModalDialog.new(self, capybara_session.find(:active_admin, :modal_dialog))
+      inputs.each { |name, value| dialog.fill(name, with: value) }
+      dialog.confirm
+    end
 
     def action_items
       all(:active_admin, :batch_action_item, visible: :all, wait: false)

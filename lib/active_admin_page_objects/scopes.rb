@@ -31,7 +31,7 @@ module ActiveAdminPageObjects
     # @return [Integer, nil]
     def count(label)
       badge = scope_link(label).first(:active_admin, :scope_count, minimum: 0)
-      badge && Integer(badge.text.strip)
+      badge && Integer(badge.text[/\d+/])
     end
 
     private

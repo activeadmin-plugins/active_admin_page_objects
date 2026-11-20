@@ -7,17 +7,20 @@ module ActiveAdminPageObjects
   class MainMenu < Section
     selector_key :main_menu
 
-    ITEM_XPATH = "./ul/li"
-    LABEL_XPATH = "./a | ./button | ./div/a"
-    LINK_XPATH = "./a | ./div/a"
+    # The root is the `ul` itself; a nested item holds its submenu in a `ul`.
+    ITEM_XPATH = "./li | ./ul/li"
+    LABEL_XPATH = "./a | ./span"
+    LINK_XPATH = "./a"
 
     # Visits the menu item at the label path +labels+.
     def go(*labels)
       item = find_item(labels) || raise(Capybara::ElementNotFound, "no menu item #{labels.inspect}")
       link = item.first(:xpath, LINK_XPATH, visible: :all, minimum: 0)
-      raise ArgumentError, "menu item #{labels.inspect} has no link" if link.nil? || link[:href].to_s.empty? || link[:href] == "#"
+      href = link ? link[:href].to_s : ""
+      # A parent item links to "#", which a browser reports as the page URL plus "#".
+      raise ArgumentError, "menu item #{labels.inspect} has no link" if href.empty? || href.end_with?("#")
 
-      visit(link[:href])
+      visit(href)
     end
 
     # True when the menu has an item at the label path +labels+.
@@ -33,8 +36,7 @@ module ActiveAdminPageObjects
     # The label path of the current item, e.g. `["Catalog", "Orders"]`.
     # @return [Array<String>]
     def current_labels
-      path = current_path_in(root_element)
-      path ? path.map { |li| label_of(li) } : []
+      current_path_in(root_element).map { |li| label_of(li) }
     end
 
     private
@@ -55,15 +57,10 @@ module ActiveAdminPageObjects
       item.first(:xpath, LABEL_XPATH, visible: :all, minimum: 0)&.text(:all).to_s.strip
     end
 
+    # ActiveAdmin marks the current item and each of its parents.
     def current_path_in(scope)
-      children(scope).each do |li|
-        return [li] if li.has_xpath?(LINK_XPATH, visible: :all, wait: false) &&
-                       li.first(:xpath, LINK_XPATH, visible: :all).matches_css?(sel(:main_menu_selected), wait: false)
-
-        nested = current_path_in(li)
-        return [li, *nested] if nested
-      end
-      nil
+      current = children(scope).find { |li| li.matches_css?(sel(:main_menu_selected), visible: :all, wait: false) }
+      current ? [current, *current_path_in(current)] : []
     end
   end
 end

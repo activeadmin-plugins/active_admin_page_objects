@@ -6,14 +6,21 @@ RSpec.describe ActiveAdminPageObjects::Breadcrumbs do
 
   before { show.load(id: customer.id) }
 
+  # ActiveAdmin 3 uppercases the trail in CSS and Chrome reports the uppercased text.
   it "lists the links and labels" do
     expect(show.breadcrumbs.links.size).to eq(2)
-    expect(show.breadcrumbs.labels).to eq(%w[Admin Customers])
+    expect(show.breadcrumbs.labels.map(&:downcase)).to eq(%w[admin customers])
   end
 
   it "matches the exact label sequence, ignoring case" do
     expect(show.breadcrumbs).to have_labels("Admin", "customers")
     expect(show.breadcrumbs).to have_no_labels("Admin")
     expect(show.breadcrumbs).to have_no_labels("Customers", "Admin")
+  end
+
+  context "with rack_test", driver: :rack_test do
+    it "reads the labels as written" do
+      expect(show.breadcrumbs.labels).to eq(%w[Admin Customers])
+    end
   end
 end

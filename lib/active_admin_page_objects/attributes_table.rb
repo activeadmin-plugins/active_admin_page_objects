@@ -28,6 +28,12 @@ module ActiveAdminPageObjects
       find(:css, cell_selector(key)).text.strip
     end
 
+    # The status tag in the value cell of row +key+.
+    # @return [StatusTag]
+    def status_tag(key)
+      StatusTag.new(self, find(:css, cell_selector(key)).find(:active_admin, :status_tag))
+    end
+
     private
 
     def cell_selector(key)

@@ -1,82 +1,136 @@
 # frozen_string_literal: true
 
 module ActiveAdminPageObjects
-  # Marks a selector-map entry for a feature that ActiveAdmin 4 removed.
+  # Marks a selector-map entry for a feature that ActiveAdmin 4 removed. Kept
+  # so code written for 2.x still loads; no 1.x entry uses it.
   REMOVED = Object.new.freeze
 
-  # The CSS selector map for vanilla ActiveAdmin 4. A `%s` in a selector is
+  # Marks a selector-map entry for a feature that ActiveAdmin 3 does not have.
+  NOT_IN_ACTIVE_ADMIN_3 = Object.new.freeze
+
+  # The CSS selector map for vanilla ActiveAdmin 3. A `%s` in a selector is
   # filled from the arguments of ActiveAdminPageObjects.selector.
   module Selectors
     DEFAULTS = {
-      site_title: "h1[data-test-site-title]",
-      dark_mode_toggle: "button.dark-mode-toggle",
-      user_menu_button: "#user-menu-button",
-      page_title: "[data-test-page-header] h2",
-      utility_navigation: REMOVED,
+      site_title: "#site_title",
+      dark_mode_toggle: NOT_IN_ACTIVE_ADMIN_3,
+      user_menu_button: NOT_IN_ACTIVE_ADMIN_3,
+      page_title: "#page_title",
 
-      breadcrumbs: 'nav[aria-label="breadcrumb"]',
-      breadcrumb_link: "ol > li > a",
+      utility_navigation: "#utility_nav",
+      utility_navigation_item: "li",
+      utility_navigation_current_user: "#current_user",
+      utility_navigation_logout: "#logout a",
 
-      action_items: "[data-test-action-items]",
-      action_item: "a, button",
-      action_item_dropdown: REMOVED,
+      breadcrumbs: "#titlebar_left .breadcrumb",
+      breadcrumb_link: "a",
 
-      flashes: "[data-test-page-header] + div:not([data-test-page-content])",
-      flash: "div",
-      flash_notice: "div.bg-green-50",
-      flash_alert: "div.bg-yellow-50",
-      flash_error: "div.bg-red-50",
+      # Rendered on every page, also without items.
+      action_items: "#titlebar_right .action_items",
+      action_item: ".action_item > a, .action_item > button, .action_item > .dropdown_menu > .dropdown_menu_button",
+      action_item_dropdown: ".action_item .dropdown_menu",
 
-      main_menu: "#main-menu",
-      main_menu_selected: "a.selected",
+      dropdown_menu_button: "a.dropdown_menu_button",
+      dropdown_menu_list: ".dropdown_menu_list_wrapper",
+      dropdown_menu_item: ".dropdown_menu_list a",
 
-      table: "table.data-table",
-      table_header: "thead th",
+      # Rendered on every page, also without flashes.
+      flashes: ".flashes",
+      flash: ".flash",
+      flash_notice: ".flash.flash_notice",
+      flash_alert: ".flash.flash_alert",
+      flash_error: ".flash.flash_error",
+      flash_warning: ".flash.flash_warning",
+
+      main_menu: "#header #tabs",
+      main_menu_selected: "li.current",
+
+      table: "table.index_table",
+      table_header: "thead th.col",
+      table_sortable_header: "thead th.sortable.col-%s",
+      table_sorted_header: "thead th.sorted-asc, thead th.sorted-desc",
+      table_sort_link: "a",
       table_row: "tbody > tr",
       table_row_by_id: 'tbody > tr[id$="_%s"]',
-      table_cell: 'td[data-column="%s"]',
-      table_row_checkbox: "input.batch-actions-resource-selection",
-      blank_slate: ".main-content-container .border-dashed",
+      table_cell: "td.col-%s",
+      table_row_checkbox: "input.collection_selection",
+      blank_slate: ".blank_slate_container",
 
-      attributes_table: ".attributes-table",
-      attributes_table_row: 'tr[data-row="%s"]',
+      attributes_table: ".attributes_table",
+      attributes_table_row: "tr.row-%s",
 
-      panel: ".panel",
-      panel_title: ".panel-title",
-      panel_body: ".panel-body",
+      status_tag: ".status_tag",
 
-      filters: "form.filters-form",
+      # Sidebar sections and the comments panel are panels too in ActiveAdmin 3;
+      # they have their own sections, so `panel` leaves them out.
+      panel: ".panel:not(.sidebar_section):not(.comments)",
+      panel_title: "h3",
+      panel_body: ".panel_contents",
+
+      sidebar: "#sidebar",
+      sidebar_section: "#sidebar .sidebar_section",
+      sidebar_title: "h3",
+      sidebar_body: ".panel_contents",
+
+      filters: "#filters_sidebar_section form.filter_form",
       filter: "#q_%s_input",
-      filter_predicate: "select[data-search-methods]",
-      filter_value: ".filters-form-input-group > input",
-      filter_range_from: 'input[name$="_gteq]"]',
-      filter_range_to: 'input[name$="_lteq]"]',
-      filters_footer: ".filters-form-buttons",
-      filters_submit: ".filters-form-submit",
-      filters_clear: ".filters-form-clear",
+      filter_predicate: "select",
+      filter_value: "input",
+      filter_range_from: 'input[name*="_gteq"]',
+      filter_range_to: 'input[name*="_lteq"]',
+      filters_footer: "form.filter_form .buttons",
+      filters_submit: "input[type=submit]",
+      filters_clear: "a.clear_filters_btn",
 
       scopes: ".scopes",
-      scope: "a.index-button",
-      scope_selected: "a.index-button-selected",
-      scope_count: ".scopes-count",
+      scope: ".table_tools_segmented_control li.scope > a",
+      scope_selected: ".table_tools_segmented_control li.scope.selected > a",
+      scope_count: "span.count",
 
-      pagination: "nav[data-test-pagination]",
-      pagination_current: "a.bg-blue-500",
-      pagination_next: 'a[rel="next"]:has(.sr-only)',
-      pagination_previous: 'a[rel="prev"]:has(.sr-only)',
+      pagination: "#index_footer .pagination",
+      pagination_current: ".page.current",
+      pagination_next: ".next a",
+      pagination_previous: ".prev a",
 
       batch_actions: "form#collection_selection",
-      batch_actions_toggle_all: "input.batch-actions-toggle-all",
-      batch_actions_button: ".batch-actions-dropdown-toggle",
-      batch_action_item: "[data-batch-action-item]",
+      batch_actions_toggle_all: "#collection_selection_toggle_all",
+      batch_actions_button: ".batch_actions_selector a.dropdown_menu_button",
+      batch_actions_menu: ".batch_actions_selector .dropdown_menu_list_wrapper",
+      batch_action_item: ".batch_actions_selector a.batch_action[data-action]",
 
-      form: "form.formtastic",
+      modal_dialog: ".active_admin_dialog",
+      modal_dialog_title: ".ui-dialog-title",
+      modal_dialog_form: "form#dialog_confirm",
+      modal_dialog_ok: ".ui-dialog-buttonset button:nth-child(1)",
+      modal_dialog_cancel: ".ui-dialog-buttonset button:nth-child(2)",
+
+      form: "form.formtastic:not(.active_admin_comment)",
       form_input: "li#%s_%s_input",
-      form_inline_error: ".inline-errors",
+      form_inline_error: "p.inline-errors",
       form_semantic_error: "ul.errors > li",
       form_submit: "fieldset.actions input[type=submit], fieldset.actions button[type=submit]",
 
-      tabs: REMOVED
+      has_many: ".has_many_container.%s",
+      has_many_fieldset: "fieldset.has_many_fields",
+      has_many_add: "a.has_many_add",
+      has_many_remove: "a.has_many_remove",
+      has_many_delete: "li.has_many_delete input[type=checkbox]",
+
+      # `ul#tabs` (the main menu) and `ul#utility_nav` carry the `tabs` class too.
+      tabs: "#active_admin_content .tabs",
+      tab_link: ".nav-tabs > li > a",
+      tab_current_link: ".nav-tabs > li.ui-tabs-active > a",
+      tab_panel: ".tab-content > div",
+
+      comments: '[id^="active_admin_comments_for_"]',
+      comments_title: "h3",
+      # The comment form carries the `active_admin_comment` class too.
+      comment: "div.active_admin_comment",
+      comment_body: ".active_admin_comment_body",
+      comment_author: ".active_admin_comment_author",
+      comment_delete: '.active_admin_comment_meta a[data-method="delete"]',
+      comment_input: "#active_admin_comment_body",
+      comment_submit: "form.active_admin_comment input[type=submit]"
     }.freeze
 
     # The map in use: DEFAULTS plus ActiveAdminPageObjects.register_selectors.
@@ -85,12 +139,12 @@ module ActiveAdminPageObjects
 
   class << self
     # The CSS selector for +key+.
-    # @raise [RemovedInActiveAdmin4] when ActiveAdmin 4 removed the feature
+    # @raise [NotInActiveAdmin3] when ActiveAdmin 3 does not have the feature
     # @raise [KeyError] when no selector is registered for +key+
     # @return [String]
     def selector(key, *args)
       css = Selectors::MAP.fetch(key) { raise KeyError, "no selector for #{key.inspect}" }
-      raise RemovedInActiveAdmin4, "#{key.to_s.tr('_', ' ')} was removed in ActiveAdmin 4" if css.equal?(REMOVED)
+      raise NotInActiveAdmin3, "#{key.to_s.tr('_', ' ')} is not in ActiveAdmin 3" if css.equal?(NOT_IN_ACTIVE_ADMIN_3)
 
       args.empty? ? css : format(css, *args)
     end

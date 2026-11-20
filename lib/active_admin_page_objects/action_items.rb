@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
 module ActiveAdminPageObjects
-  # The action items (buttons and links) right of the page title.
+  # The action items (buttons and links) right of the page title. The button
+  # of a `dropdown_menu` is an item too; #dropdown reaches the menu's own items.
   class ActionItems < Section
     selector_key :action_items
 
@@ -28,13 +29,22 @@ module ActiveAdminPageObjects
       eventually(**options) { find_item(label).nil? }
     end
 
-    # The action-item dropdown of ActiveAdmin 3.
-    # @raise [RemovedInActiveAdmin4] on ActiveAdmin 4
-    def dropdown(*)
-      find(:active_admin, :action_item_dropdown)
+    # The dropdown menu whose button is labelled +label+ (case-insensitive),
+    # or the only one when +label+ is nil.
+    # @return [DropdownMenu]
+    def dropdown(label = nil)
+      DropdownMenu.new(self, label.nil? ? find(:active_admin, :action_item_dropdown) : dropdown_node(label))
     end
 
     private
+
+    def dropdown_node(label)
+      root_element.synchronize do
+        all(:active_admin, :action_item_dropdown, wait: false).find do |menu|
+          same_text?(menu.find(:active_admin, :dropdown_menu_button, wait: false).text, label)
+        end || raise(Capybara::ElementNotFound, "no action item dropdown #{label.inspect}")
+      end
+    end
 
     def item(label)
       find_item(label) || raise(Capybara::ElementNotFound, "no action item #{label.inspect} in #{labels.inspect}")

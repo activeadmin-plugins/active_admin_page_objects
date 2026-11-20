@@ -26,7 +26,8 @@ RSpec.describe ActiveAdminPageObjects::Filters do
     expect(filters.filter(:category)).to be_a(ActiveAdminPageObjects::SelectFilter)
     expect(filters.filter(:active)).to be_a(ActiveAdminPageObjects::BooleanFilter)
     expect(filters.filter(:created_at)).to be_a(ActiveAdminPageObjects::DateRangeFilter)
-    expect(filters.filter(:name).label).to eq("Name")
+    # ActiveAdmin 3 uppercases sidebar labels in CSS and Chrome reports the uppercased text.
+    expect(filters.filter(:name).label).to match(/\Aname\z/i)
   end
 
   it "registers a section for another input class" do
@@ -164,6 +165,7 @@ RSpec.describe ActiveAdminPageObjects::Filters do
     expect(index.table).to have_rows(count: 3)
   end
 
+  # "Clear Filters" is left out: ActiveAdmin 3 clears in JavaScript.
   context "with rack_test", driver: :rack_test do
     it "fills in values, selects and sets ranges without JavaScript" do
       index.load
@@ -175,8 +177,6 @@ RSpec.describe ActiveAdminPageObjects::Filters do
       expect(names).to eq(["Alpha"])
       expect(filters.filter(:status)).to have_selected("active")
       expect(filters.filter(:created_at)).to have_range("2026-01-01", "2026-12-31")
-      filters.clear
-      expect(index.table).to have_rows(count: 3)
     end
   end
 end

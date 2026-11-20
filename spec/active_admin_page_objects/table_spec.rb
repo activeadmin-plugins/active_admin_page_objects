@@ -40,6 +40,37 @@ RSpec.describe ActiveAdminPageObjects::Table do
     it "keeps rows in table order" do
       expect(table.rows.map(&:record_id)).to eq(customers.reverse.map { |c| c.id.to_s })
     end
+
+    it "reads the sort order and the sortable columns" do
+      expect(table.sorted_by).to eq(["id", :desc])
+      expect(table).to have_sortable_column(:name)
+      expect(table).to have_sortable_column("Created")
+      Capybara.using_wait_time(0) { expect(table.has_sortable_column?(:category)).to be(false) }
+    end
+
+    it "sorts by clicking a header" do
+      table.sort_by(:name)
+      expect(page).to have_current_path(/order=name_desc/)
+      expect(index.table.sorted_by).to eq(["name", :desc])
+    end
+
+    it "sorts in a given direction" do
+      table.sort_by(:name, :asc)
+      expect(page).to have_current_path(/order=name_asc/)
+      expect(index.table.sorted_by).to eq(["name", :asc])
+      expect(index.table.rows.map(&:record_id)).to eq(customers.map { |c| c.id.to_s })
+
+      index.table.sort_by("Name", "desc")
+      expect(index.table.sorted_by).to eq(["name", :desc])
+      expect(index.table.rows.map(&:record_id)).to eq(customers.reverse.map { |c| c.id.to_s })
+
+      index.table.sort_by(:name, :desc)
+      expect(page).to have_current_path(/order=name_desc/)
+    end
+
+    it "rejects an unknown sort direction" do
+      expect { table.sort_by(:name, :up) }.to raise_error(ArgumentError, /direction/)
+    end
   end
 
   it_behaves_like "index table"

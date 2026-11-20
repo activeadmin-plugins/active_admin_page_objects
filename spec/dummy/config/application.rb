@@ -1,13 +1,12 @@
 # frozen_string_literal: true
 
-# Minimal ActiveAdmin 4 host app (importmap + propshaft, Tailwind CSS built by
-# the npm CLI) that the specs drive through the page objects.
+# Minimal ActiveAdmin 3 host app (sprockets, jQuery from jquery-rails, Sass)
+# that the specs drive through the page objects.
 require "rails"
 require "active_record/railtie"
 require "action_controller/railtie"
 require "action_view/railtie"
-require "propshaft"
-require "importmap-rails"
+require "sprockets/railtie"
 require "activeadmin"
 
 module Dummy

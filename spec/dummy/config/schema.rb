@@ -2,6 +2,20 @@
 
 ActiveRecord::Schema.verbose = false
 ActiveRecord::Schema.define do
+  create_table :admin_users do |t|
+    t.string :email
+    t.timestamps
+  end
+
+  create_table :active_admin_comments do |t|
+    t.string :namespace
+    t.text :body
+    t.references :resource, polymorphic: true
+    t.references :author, polymorphic: true
+    t.timestamps
+  end
+  add_index :active_admin_comments, :namespace
+
   create_table :categories do |t|
     t.string :name
   end

@@ -14,7 +14,7 @@ module ActiveAdminPageObjects
       normalize_text(actual) == normalize_text(expected)
     end
 
-    # The key ActiveAdmin writes into `data-column` and `data-row`:
+    # The key ActiveAdmin writes into the `col-<key>` and `row-<key>` classes:
     # `"EXTERNAL ID"` and `:external_id` both become `"external_id"`.
     # @return [String]
     def slug(key)

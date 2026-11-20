@@ -9,7 +9,7 @@ Gem::Specification.new do |spec|
   spec.email = ["senid231@gmail.com"]
 
   spec.summary = "A Page Object Model DSL for Capybara of ActiveAdmin, built on SitePrism."
-  spec.description = "SitePrism pages and sections for vanilla ActiveAdmin 4's layout, index tables, filters, " \
+  spec.description = "SitePrism pages and sections for vanilla ActiveAdmin 3's layout, index tables, filters, " \
                      "scopes, batch actions, show pages and forms, so system specs call semantic methods " \
                      "instead of CSS selectors."
   spec.homepage = "https://github.com/senid231/active_admin_page_objects"
@@ -24,7 +24,7 @@ Gem::Specification.new do |spec|
   spec.files = Dir["lib/**/*.rb", "README.md", "CHANGELOG.md", "LICENSE"]
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "activeadmin", ">= 4.0.0.beta1", "< 5.0.0.a"
+  spec.add_dependency "activeadmin", ">= 3.0", "< 4.0.0.a"
   spec.add_dependency "capybara", ">= 3.37"
   spec.add_dependency "site_prism", ">= 5.0", "< 7"
 end

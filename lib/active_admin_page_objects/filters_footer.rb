@@ -10,7 +10,8 @@ module ActiveAdminPageObjects
       find(:active_admin, :filters_submit).click
     end
 
-    # Clicks "Clear Filters".
+    # Clicks "Clear Filters". ActiveAdmin 3 clears in JavaScript, so this
+    # needs a JavaScript driver.
     def clear
       find(:active_admin, :filters_clear).click
     end

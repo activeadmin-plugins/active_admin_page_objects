@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
 module ActiveAdminPageObjects
-  # The flash messages under the page header. ActiveAdmin 4 renders the
-  # `notice`, `alert` and `error` types only.
+  # The flash messages under the title bar. ActiveAdmin 3 renders the
+  # container on every page, so `has_no_flash?` also works without flashes.
   class Flashes < Section
     selector_key :flashes
 
-    TYPES = %i[notice alert error].freeze
+    TYPES = %i[notice alert error warning].freeze
 
     # True when a flash of +type+ contains +text+.
     def has_flash?(type, text = nil, **options)

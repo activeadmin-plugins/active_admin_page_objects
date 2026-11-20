@@ -60,6 +60,12 @@ module ActiveAdminPageObjects
       find(:active_admin, :form_submit, match: :first).click
     end
 
+    # The `has_many` block of +association+, e.g. `has_many(:orders)`.
+    # @return [HasMany]
+    def has_many(association)
+      HasMany.new(self, find(:css, sel(:has_many, association.to_s)))
+    end
+
     # True when the input for +key+ shows an inline error containing +text+.
     def has_input_error?(key, text = nil, **options)
       has_css?(input_error_selector(key), **(text ? { text: text } : {}), **options)

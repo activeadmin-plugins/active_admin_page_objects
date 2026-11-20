@@ -1,13 +1,9 @@
 # frozen_string_literal: true
 
 class ApplicationController < ActionController::Base
-  DemoUser = Struct.new(:name) do
-    def to_s = name
-  end
-
   private
 
   def current_admin_user
-    DemoUser.new("Demo Admin")
+    AdminUser.first_or_create!(email: "admin@example.com")
   end
 end

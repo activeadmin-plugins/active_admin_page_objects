@@ -6,6 +6,8 @@ class Customer < ActiveRecord::Base
   belongs_to :category, optional: true
   has_many :orders, dependent: :destroy
 
+  accepts_nested_attributes_for :orders, allow_destroy: true
+
   validates :name, presence: true
   validates :email, format: { with: /\A[^@\s]+@[^@\s]+\z/ }
   validate :name_is_not_reserved

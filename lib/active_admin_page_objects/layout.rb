@@ -5,7 +5,8 @@ module ActiveAdminPageObjects
   # layout. Each element and section also gets SitePrism's `has_<name>?` and
   # `has_no_<name>?` predicates.
   module Layout
-    # Element name => selector-map key.
+    # Element name => selector-map key. ActiveAdmin 3 has no dark mode toggle
+    # and no user menu button: using those elements raises NotInActiveAdmin3.
     ELEMENTS = {
       site_title: :site_title,
       dark_mode_toggle: :dark_mode_toggle,
@@ -29,7 +30,8 @@ module ActiveAdminPageObjects
           breadcrumbs: [Breadcrumbs],
           action_items: [ActionItems],
           flashes: [Flashes],
-          main_menu: [MainMenu]
+          main_menu: [MainMenu],
+          modal_dialog: [ModalDialog]
         }
       end
 
@@ -63,16 +65,23 @@ module ActiveAdminPageObjects
       end
     end
 
-    # The panel titled +title+ (case-insensitive).
+    # The panel titled +title+ (case-insensitive). Sidebar sections and the
+    # comments panel are not panels here: use #sidebar and Comments.
     # @return [Panel]
     def panel(title)
       Panel.new(self, find(:active_admin_panel, title))
     end
 
-    # The utility navigation of ActiveAdmin 3.
-    # @raise [RemovedInActiveAdmin4] on ActiveAdmin 4
+    # The sidebar section titled +title+ (case-insensitive).
+    # @return [Sidebar]
+    def sidebar(title)
+      Sidebar.new(self, find(:active_admin_sidebar, title))
+    end
+
+    # The utility navigation in the header: the current user and the logout link.
+    # @return [UtilityNavigation]
     def utility_navigation
-      find(:active_admin, :utility_navigation)
+      UtilityNavigation.new(self, find(:active_admin, :utility_navigation))
     end
   end
 end

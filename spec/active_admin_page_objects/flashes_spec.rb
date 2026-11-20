@@ -13,6 +13,7 @@ RSpec.describe ActiveAdminPageObjects::Flashes do
     expect(index.flashes).to have_flash(:error, "Report failed")
     expect(index.flashes).to have_flash(:error)
     expect(index.flashes).to have_no_flash(:notice)
+    expect(index.flashes).to have_no_flash(:warning)
     expect(index.flashes).to have_no_flash(:alert, "Report failed")
   end
 
@@ -21,7 +22,13 @@ RSpec.describe ActiveAdminPageObjects::Flashes do
     expect(index.flashes.messages(:error)).to eq(["Report failed"])
   end
 
-  it "rejects a type ActiveAdmin does not render" do
-    expect { index.flashes.has_flash?(:warning) }.to raise_error(ArgumentError, /flash type/)
+  it "rejects a type outside TYPES" do
+    expect { index.flashes.has_flash?(:info) }.to raise_error(ArgumentError, /flash type/)
+  end
+
+  it "finds no flash on a page without flashes" do
+    index.load
+    expect(index.flashes).to have_no_flash(:notice)
+    expect(index.flashes.messages).to eq([])
   end
 end
