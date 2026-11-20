@@ -105,6 +105,7 @@ page_object.main_menu.go("Customers")
 page_object.main_menu.go("Catalog", "Orders")
 expect(page_object.main_menu).to have_item("Catalog", "Categories")
 page_object.main_menu.current_labels # => ["Catalog", "Orders"]
+page_object.main_menu.labels("Catalog") # => ["Categories", "Orders"]
 ```
 
 ### Table

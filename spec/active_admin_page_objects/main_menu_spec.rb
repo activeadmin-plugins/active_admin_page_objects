@@ -25,6 +25,12 @@ RSpec.describe ActiveAdminPageObjects::MainMenu do
       expect(dashboard.main_menu).to have_no_item("Reports")
     end
 
+    it "lists item labels" do
+      expect(dashboard.main_menu.labels).to eq(%w[Dashboard Customers Tags Catalog])
+      expect(dashboard.main_menu.labels("catalog")).to eq(%w[Categories Orders])
+      expect { dashboard.main_menu.labels("Nope") }.to raise_error(Capybara::ElementNotFound)
+    end
+
     it "reports the current item" do
       expect(dashboard.main_menu.current_labels).to eq(["Dashboard"])
     end
