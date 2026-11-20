@@ -90,7 +90,7 @@ RSpec.describe ActiveAdminPageObjects::RSpec::Matchers do
         .to raise_error(RSpec::Expectations::ExpectationNotMetError, /expected to find .*#page_title/)
       expect { expect(page).not_to have_page_title("Customers", wait: 0) }
         .to raise_error(RSpec::Expectations::ExpectationNotMetError, /expected not to find .*#page_title/)
-      expect(have_page_title(text: "Customers").description).to eq("have page title {text: \"Customers\"}")
+      expect(have_page_title(text: "Customers").description).to match(/\Ahave page title \{:?text(: |=>)"Customers"\}\z/)
     end
   end
 
