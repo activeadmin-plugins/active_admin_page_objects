@@ -36,6 +36,8 @@ module ActiveAdminPageObjects
 
     # Picks the matcher when it sees what the expectation is about.
     class Matcher
+      include ::RSpec::Matchers::Composable
+
       def initialize(name, other, *args, **options, &block)
         @name = name
         @other = other

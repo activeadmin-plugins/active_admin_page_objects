@@ -112,4 +112,14 @@ RSpec.describe ActiveAdminPageObjects::RSpec::Matchers do
       expect(index).to have_table
     end
   end
+
+  describe "composition" do
+    include ActiveAdminPageObjects::RSpec::Matchers
+
+    it "combines with and" do
+      index = Pages::CustomerIndex.new
+      index.load
+      expect(index).to have_page_title(text: "Customers").and have_page_title(exact_text: "Customers")
+    end
+  end
 end
