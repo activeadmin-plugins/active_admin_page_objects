@@ -17,16 +17,16 @@ end
 RSpec.describe ActiveAdminPageObjects do
   describe ".check_version!" do
     it "passes for a satisfied requirement" do
-      expect { described_class.check_version!("~> 0.1", plugin: "demo") }.not_to raise_error
+      expect { described_class.check_version!(">= 2.0.0.a", "< 3", plugin: "demo") }.not_to raise_error
     end
 
     it "raises for an unsatisfied requirement" do
-      expect { described_class.check_version!(">= 1.0", plugin: "demo") }
-        .to raise_error(ActiveAdminPageObjects::IncompatibleVersion, /demo page objects need active_admin_page_objects >= 1.0/)
+      expect { described_class.check_version!(">= 3.0", plugin: "demo") }
+        .to raise_error(ActiveAdminPageObjects::IncompatibleVersion, /demo page objects need active_admin_page_objects >= 3.0/)
     end
   end
 
   it "has a version" do
-    expect(ActiveAdminPageObjects::VERSION).to eq("0.1.0")
+    expect(ActiveAdminPageObjects::VERSION).to eq("2.0.0.alpha")
   end
 end

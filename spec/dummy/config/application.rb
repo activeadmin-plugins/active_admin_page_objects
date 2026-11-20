@@ -24,6 +24,5 @@ module Dummy
     config.logger = Logger.new($stdout)
     config.log_level = :warn
     config.public_file_server.enabled = true
-    config.assets.paths << root.join("node_modules/tom-select/dist")
   end
 end

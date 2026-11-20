@@ -1,5 +1,27 @@
 # frozen_string_literal: true
 
+# Stands in for a theme that prepends into SelectControl; inert unless active.
+unless defined?(ChooseOptionSpy)
+  module ChooseOptionSpy
+    class << self
+      attr_accessor :active
+
+      def chosen
+        @chosen ||= []
+      end
+    end
+
+    def choose_option(scope, label)
+      ChooseOptionSpy.chosen << label if ChooseOptionSpy.active
+      super
+    end
+
+    private :choose_option
+  end
+
+  ActiveAdminPageObjects::SelectControl.prepend(ChooseOptionSpy)
+end
+
 RSpec.describe "Extending sections" do
   let(:customer) { create_customer(name: "Acme") }
 
@@ -37,5 +59,55 @@ RSpec.describe "Extending sections" do
     dashboard = page_class.new
     dashboard.load
     expect(dashboard.stats.paragraphs).to eq(["Nothing yet."])
+  end
+
+  describe "a theme or plugin" do
+    around do |example|
+      saved = ActiveAdminPageObjects::Selectors::MAP.dup
+      example.run
+    ensure
+      ActiveAdminPageObjects::Selectors::MAP.replace(saved)
+    end
+
+    it "prepends into SelectControl to drive a select widget" do
+      ChooseOptionSpy.active = true
+      create_category("Retail")
+      create_customer(status: "active")
+
+      index = Pages::CustomerIndex.new
+      index.load
+      index.filters.filter(:status).select_option("pending")
+      expect(ChooseOptionSpy.chosen).to eq(["pending"])
+
+      form_page = Pages::CustomerForm.new
+      form_page.load(action: "new")
+      form_page.form.choose(:status, "closed")
+      expect(ChooseOptionSpy.chosen).to eq(%w[pending closed])
+      expect(form_page.form.input(:status)).to have_select(selected: "closed")
+    ensure
+      ChooseOptionSpy.active = false
+      ChooseOptionSpy.chosen.clear
+    end
+
+    it "registers a selector for a removed key" do
+      ActiveAdminPageObjects.register_selectors(tabs: "[data-test-page-header]")
+      show = Pages::CustomerShow.new
+      show.load(id: create_customer.id)
+      expect(show).to have_tabs
+    end
+
+    it "adds a section to every class that includes Layout" do
+      early_class = Class.new(SitePrism::Page) { include ActiveAdminPageObjects::Layout }
+      ActiveAdminPageObjects::Layout.add_section(:welcome_panel, ActiveAdminPageObjects::Panel,
+                                                 :active_admin_panel, "Welcome")
+      ActiveAdminPageObjects::Layout.add_section(:welcome_panel, ActiveAdminPageObjects::Panel,
+                                                 :active_admin_panel, "Welcome")
+
+      dashboard = Pages::Dashboard.new
+      dashboard.load
+      expect(dashboard).to respond_to(:welcome_panel)
+      expect(dashboard.welcome_panel.title).to match(/Welcome/)
+      expect(early_class.new).to respond_to(:welcome_panel)
+    end
   end
 end

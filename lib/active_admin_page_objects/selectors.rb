@@ -4,10 +4,10 @@ module ActiveAdminPageObjects
   # Marks a selector-map entry for a feature that ActiveAdmin 4 removed.
   REMOVED = Object.new.freeze
 
-  # One CSS selector map per markup. A `%s` in a selector is filled from the
-  # arguments of ActiveAdminPageObjects.selector.
+  # The CSS selector map for vanilla ActiveAdmin 4. A `%s` in a selector is
+  # filled from the arguments of ActiveAdminPageObjects.selector.
   module Selectors
-    V4 = {
+    DEFAULTS = {
       site_title: "h1[data-test-site-title]",
       dark_mode_toggle: "button.dark-mode-toggle",
       user_menu_button: "#user-menu-button",
@@ -76,61 +76,28 @@ module ActiveAdminPageObjects
       form_semantic_error: "ul.errors > li",
       form_submit: "fieldset.actions input[type=submit], fieldset.actions button[type=submit]",
 
-      tabs: REMOVED,
-
-      tom_select: ".ts-wrapper",
-      tom_select_control: ".ts-control",
-      tom_select_dropdown: ".ts-dropdown",
-      tom_select_option: ".option",
-      tom_select_create: ".create",
-      tom_select_search: ".dropdown-input",
-      tom_select_item: ".ts-control .item",
-      tom_select_placeholder: ".items-placeholder",
-      tom_select_disabled: ".ts-wrapper.disabled"
+      tabs: REMOVED
     }.freeze
 
-    # Theme v4 entries override V4 one by one; missing keys fall back to V4.
-    THEME_V4 = {}.freeze
-
-    # The maps in use: the defaults plus ActiveAdminPageObjects.register_selectors.
-    MAPS = { v4: V4.dup, theme_v4: THEME_V4.dup }.freeze
-    FALLBACKS = { theme_v4: :v4 }.freeze
+    # The map in use: DEFAULTS plus ActiveAdminPageObjects.register_selectors.
+    MAP = DEFAULTS.dup
   end
 
   class << self
-    # The CSS selector for +key+ under the current markup.
-    # @raise [UnsupportedMarkup] for ActiveAdmin 3 markup
+    # The CSS selector for +key+.
     # @raise [RemovedInActiveAdmin4] when ActiveAdmin 4 removed the feature
+    # @raise [KeyError] when no selector is registered for +key+
     # @return [String]
     def selector(key, *args)
-      css = lookup_selector(markup, key)
+      css = Selectors::MAP.fetch(key) { raise KeyError, "no selector for #{key.inspect}" }
       raise RemovedInActiveAdmin4, "#{key.to_s.tr('_', ' ')} was removed in ActiveAdmin 4" if css.equal?(REMOVED)
 
       args.empty? ? css : format(css, *args)
     end
 
-    # Adds or overrides selectors for +markup+, e.g. for a plugin's sections.
-    def register_selectors(markup, **map)
-      raise ArgumentError, "unknown markup #{markup.inspect}" unless Selectors::MAPS.key?(markup)
-
-      Selectors::MAPS[markup].merge!(map)
-    end
-
-    private
-
-    def lookup_selector(markup, key)
-      if markup == :v3
-        raise UnsupportedMarkup,
-              "ActiveAdmin 3 markup is not supported yet by active_admin_page_objects #{VERSION}"
-      end
-
-      map = Selectors::MAPS.fetch(markup)
-      return map[key] if map.key?(key)
-
-      fallback = Selectors::FALLBACKS[markup]
-      return lookup_selector(fallback, key) if fallback
-
-      raise KeyError, "no #{markup} selector for #{key.inspect}"
+    # Adds or overrides selectors, e.g. for a theme's or plugin's sections.
+    def register_selectors(**map)
+      Selectors::MAP.merge!(map)
     end
   end
 end

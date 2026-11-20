@@ -5,17 +5,15 @@ require "site_prism"
 
 require_relative "active_admin_page_objects/version"
 require_relative "active_admin_page_objects/errors"
-require_relative "active_admin_page_objects/markup"
 require_relative "active_admin_page_objects/selectors"
 require_relative "active_admin_page_objects/text"
 
 # SitePrism pages and sections for ActiveAdmin. See README.md.
 module ActiveAdminPageObjects
-  extend Markup
   extend Text
 
   # Raises unless the loaded gem satisfies +requirements+. Plugins call it when
-  # their page objects load, e.g. `check_version!("~> 0.1", plugin: "my_plugin")`.
+  # their page objects load, e.g. `check_version!(">= 2.0.0.a", "< 3", plugin: "my_plugin")`.
   def self.check_version!(*requirements, plugin:)
     return if Gem::Requirement.new(*requirements).satisfied_by?(Gem::Version.new(VERSION))
 
@@ -24,8 +22,8 @@ module ActiveAdminPageObjects
   end
 end
 
-# `find(:active_admin, :table)` resolves the CSS for the current markup when the
-# query runs, so the gem can be required before ActiveAdmin is loaded.
+# `find(:active_admin, :table)` resolves the CSS when the query runs, so
+# selectors that a theme or plugin registers later still apply.
 Capybara.add_selector(:active_admin) do
   css { |key| ActiveAdminPageObjects.selector(key) }
 end

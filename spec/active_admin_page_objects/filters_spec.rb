@@ -112,14 +112,6 @@ RSpec.describe ActiveAdminPageObjects::Filters do
       page.execute_script("document.getElementById('q_status').disabled = true")
       expect(filters.filter(:status)).to have_disabled
     end
-
-    it "refuses the Tom Select-only methods on a plain select" do
-      index.load
-      status = filters.filter(:status)
-      expect { status.open }.to raise_error(ActiveAdminPageObjects::TomSelectRequired, /open/)
-      expect { status.create_option("x") }.to raise_error(ActiveAdminPageObjects::TomSelectRequired)
-      expect { status.placeholder }.to raise_error(ActiveAdminPageObjects::TomSelectRequired)
-    end
   end
 
   describe ActiveAdminPageObjects::BooleanFilter do

@@ -2,9 +2,12 @@
 
 A Page Object Model DSL for Capybara of ActiveAdmin, built on [SitePrism](https://github.com/site-prism/site_prism).
 
-System specs call semantic methods, such as `table.row(id).cell(:name)`, `filters.filter(:status).select_option("Active")` or `main_menu.go("Catalog", "Orders")`, instead of CSS selectors. The selectors live in this gem, one map per ActiveAdmin markup.
+System specs call semantic methods, such as `table.row(id).cell(:name)`, `filters.filter(:status).select_option("Active")` or `main_menu.go("Catalog", "Orders")`, instead of CSS selectors. The selectors for vanilla ActiveAdmin 4 live in this gem.
 
-Version 0.1.0 supports stock ActiveAdmin 4 (tested on 4.0.0.beta23).
+## Versions
+
+- 2.x supports vanilla ActiveAdmin 4 (tested on 4.0.0.beta23). This is the `main` line.
+- 1.x is planned for vanilla ActiveAdmin 3, on the `1-x-stable` branch, with the same names where the component exists.
 
 ## Installation
 
@@ -22,7 +25,7 @@ end
 require "active_admin_page_objects"
 ```
 
-Runtime dependencies: `site_prism` (>= 5.0, < 7) and `capybara` (>= 3.37). The gem does not depend on `activeadmin`; it reads `ActiveAdmin::VERSION` when it first resolves a selector.
+Runtime dependencies: `activeadmin` (>= 4.0.0.beta1, < 5.0.0.a), `site_prism` (>= 5.0, < 7) and `capybara` (>= 3.37).
 
 ## Usage
 
@@ -179,20 +182,17 @@ section :name_filter, ActiveAdminPageObjects::StringFilter, "#q_name_input"
 section :filters_footer, ActiveAdminPageObjects::FiltersFooter # submit and clear
 ```
 
-`SelectFilter` drives a plain `<select>`, or [Tom Select](https://tom-select.js.org) when the filter holds a `.ts-wrapper`:
+`SelectFilter` drives a native `<select>`:
 
 ```ruby
 customer = filters.filter(:customer)
-customer.select_option("Acme", search: "Acm") # search types into Tom Select first
-customer.open # Tom Select only
+customer.select_option("Acme")
 expect(customer).to have_option("Acme")
+expect(customer).to have_selected("Acme")
 expect(customer).to have_item("Acme") # the chosen item, before submit
-customer.create_option("New value") # Tom Select with create: true
-customer.placeholder # Tom Select only
 expect(customer).to have_disabled
+expect(customer).to have_no_option("Globex")
 ```
-
-`open`, `create_option` and `placeholder` raise `ActiveAdminPageObjects::TomSelectRequired` on a plain `<select>`.
 
 ### Scopes
 
@@ -245,7 +245,7 @@ form.input(:email).errors # => ["is invalid"]
 
 ### Tabs
 
-ActiveAdmin 4 removed the `tabs` component. `ActiveAdminPageObjects::Tabs` raises `RemovedInActiveAdmin4` on stock ActiveAdmin 4; a theme that brings tabs back adds its own selectors.
+ActiveAdmin 4 removed the `tabs` component. `ActiveAdminPageObjects::Tabs` raises `RemovedInActiveAdmin4`. A theme that brings tabs back registers a `tabs` selector and patches the section.
 
 ## JavaScript driver
 
@@ -253,21 +253,10 @@ These need a JavaScript driver such as Cuprite or Selenium:
 
 - `BatchActions#apply`: ActiveAdmin's JavaScript opens the menu and submits the form.
 - `StringFilter#fill_in` and `NumericFilter#fill_in` with a predicate other than the selected one: the JavaScript renames the input when the predicate changes.
-- Every Tom Select interaction: Tom Select is JavaScript.
 
 Everything else works with `rack_test` too, including `MainMenu#go`, filters with the current predicate, plain selects, date ranges, scopes, pagination and forms.
 
-## Markup detection
-
-`ActiveAdminPageObjects.markup` returns `:v3`, `:v4` or `:theme_v4`. It is detected on first use: ActiveAdmin 4.0.0.beta1 or later is `:v4`, and `:theme_v4` when `ActiveAdminTheme` 4.x is loaded too. Set it explicitly if detection guesses wrong:
-
-```ruby
-ActiveAdminPageObjects.markup = :v4
-```
-
-- `:v4` is supported.
-- `:theme_v4` uses the v4 selectors until the theme adapter overrides them.
-- `:v3` raises `ActiveAdminPageObjects::UnsupportedMarkup`.
+## Selectors
 
 Sections resolve their selectors when Capybara runs the query, through the `:active_admin` Capybara selector: `find(:active_admin, :table)`. Requiring the gem before ActiveAdmin loads is safe.
 
@@ -291,32 +280,63 @@ end
 Base your own sections on `ActiveAdminPageObjects::Section` to get `selector_key`, which points the default locator at a selector-map entry, and to share the map with the gem:
 
 ```ruby
-ActiveAdminPageObjects.register_selectors(:v4, audit_panel: "[data-audit-panel]")
+ActiveAdminPageObjects.register_selectors(audit_panel: "[data-audit-panel]")
 
 class AuditPanel < ActiveAdminPageObjects::Section
   selector_key :audit_panel
 end
 ```
 
+`register_selectors` can also replace a key that ActiveAdmin 4 removed, such as `tabs`.
+
+Add a section or an element to every page that includes `Layout`, including page classes defined earlier:
+
+```ruby
+ActiveAdminPageObjects::Layout.add_section(:audit_panel, AuditPanel)
+ActiveAdminPageObjects::Layout.add_element(:banner, ".banner")
+```
+
 Register a section for a custom filter input class with `ActiveAdminPageObjects::Filters.register_type("my_input", MyFilter)`.
 
-## Plugins
+### Select widgets
 
-A plugin that renders its own markup ships its page objects in the plugin repository, with one entry point:
+`ActiveAdminPageObjects::SelectControl` drives a native `<select>` for `SelectFilter`, `Form` and `Form::Input`. A gem with a JavaScript select widget prepends a module into it and overrides the private methods `choose_option(scope, label)`, `option_offered?(scope, label)`, `control_disabled?(scope)` and `chosen_item?(scope, label)`:
+
+```ruby
+module MyWidget
+  module SelectControl
+    private
+
+    def choose_option(scope, label)
+      # open the widget and click the option
+    end
+  end
+end
+ActiveAdminPageObjects::SelectControl.prepend(MyWidget::SelectControl)
+```
+
+## Themes and plugins
+
+A theme or plugin ships its own page objects in its own repository, with one entry point. The rule:
+
+- A new component gets a new section in that gem.
+- A change to a vanilla component ships as a patch to the base section: a selector override with `register_selectors`, or a module prepended to the base class.
 
 ```ruby
 # lib/my_plugin/page_objects.rb
 require "active_admin_page_objects"
-ActiveAdminPageObjects.check_version!("~> 0.1", plugin: "my_plugin")
+ActiveAdminPageObjects.check_version!(">= 2.0.0.a", "< 3", plugin: "my_plugin")
 
 module MyPlugin
   class Widget < ActiveAdminPageObjects::Section
     # ...
   end
 end
+
+ActiveAdminPageObjects::Layout.add_section(:widget, MyPlugin::Widget)
 ```
 
-Apps load it with `require "my_plugin/page_objects"`. The entry point picks the implementation by `ActiveAdminPageObjects.markup`; there are no per-version files to require.
+Apps load it with `require "my_plugin/page_objects"`.
 
 ## Development
 
@@ -326,7 +346,7 @@ bundle exec rake # builds the dummy app's CSS (npm), runs rubocop and rspec
 BUNDLE_GEMFILE=gemfiles/site_prism_5.gemfile bundle exec rspec
 ```
 
-The specs drive a Rails 8 dummy app with ActiveAdmin 4 (`spec/dummy`) through headless Chrome with Cuprite. The order filters in the dummy app use Tom Select.
+The specs drive a Rails 8 dummy app with ActiveAdmin 4 (`spec/dummy`) through headless Chrome with Cuprite.
 
 ## License
 

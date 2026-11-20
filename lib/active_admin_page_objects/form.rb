@@ -12,8 +12,7 @@ module ActiveAdminPageObjects
     class Input < Section
       include SelectControl
 
-      # Sets the input: types text, picks a select option by label (Tom
-      # Select included), or ticks a checkbox for `true`.
+      # Sets the input: types text, picks a select option by label, or ticks a checkbox for `true`.
       def fill(value)
         if has_css?("select", visible: :all, wait: false)
           choose_option(root_element, value.to_s)
