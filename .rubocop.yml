@@ -22,3 +22,8 @@ Naming/PredicatePrefix:
 Metrics/BlockLength:
   Exclude:
     - "spec/**/*"
+
+# The selector map is one hash literal; its entries are data, not logic.
+Metrics/ModuleLength:
+  CountAsOne:
+    - hash

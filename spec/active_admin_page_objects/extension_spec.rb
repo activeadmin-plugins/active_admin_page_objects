@@ -81,9 +81,9 @@ RSpec.describe "Extending sections" do
 
       form_page = Pages::CustomerForm.new
       form_page.load(action: "new")
-      form_page.form.choose(:status, "closed")
+      form_page.form.status.fill("closed")
       expect(ChooseOptionSpy.chosen).to eq(%w[pending closed])
-      expect(form_page.form.input(:status)).to have_select(selected: "closed")
+      expect(form_page.form.status).to have_select(selected: "closed")
     ensure
       ChooseOptionSpy.active = false
       ChooseOptionSpy.chosen.clear

@@ -49,6 +49,7 @@ ActiveAdmin.register Customer do
     column :active
     column :category
     column "Created", :created_at
+    column :notes if params[:with_notes]
     actions
   end
 

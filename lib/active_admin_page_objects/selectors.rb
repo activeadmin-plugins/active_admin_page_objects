@@ -37,10 +37,13 @@ module ActiveAdminPageObjects
       table_row_by_id: 'tbody > tr[id$="_%s"]',
       table_cell: 'td[data-column="%s"]',
       table_row_checkbox: "input.batch-actions-resource-selection",
+      # The cells of the actions column at a 1-based column position.
+      table_actions_cell: "tbody > tr > td:nth-child(%s) .data-table-resource-actions",
       blank_slate: ".main-content-container .border-dashed",
 
       attributes_table: ".attributes-table",
       attributes_table_row: 'tr[data-row="%s"]',
+      attributes_table_rows: "tr[data-row]",
 
       panel: ".panel",
       panel_title: ".panel-title",
@@ -48,6 +51,7 @@ module ActiveAdminPageObjects
 
       filters: "form.filters-form",
       filter: "#q_%s_input",
+      filter_wrappers: ".filters-form-field",
       filter_predicate: "select[data-search-methods]",
       filter_value: ".filters-form-input-group > input",
       filter_range_from: 'input[name$="_gteq]"]',
@@ -72,6 +76,8 @@ module ActiveAdminPageObjects
       batch_action_item: "[data-batch-action-item]",
 
       form: "form.formtastic",
+      # Hidden inputs are not fields.
+      form_input_wrapper: "li.input:not(.hidden)",
       form_input: "li#%s_%s_input",
       form_choice: "li.choice label",
       form_inline_error: ".inline-errors",

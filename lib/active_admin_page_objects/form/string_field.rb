@@ -2,24 +2,24 @@
 
 module ActiveAdminPageObjects
   class Form
-    # A text input: string, email, url, phone, password, number or text.
-    class StringInput < Input
+    # A text field: string, email, url, phone, password, number or text.
+    class StringField < Field
       %w[string email url phone password number text].each { |input_class| Form.register_type(input_class, self) }
 
-      # Types +value+ into the field.
+      # Types +value+ into the input.
       def fill(value)
-        field.set(value)
+        input.set(value)
       end
 
-      # The field's value.
+      # The input's value.
       # @return [String]
       def value
-        field.value
+        input.value
       end
 
       private
 
-      def field
+      def input
         find(:fillable_field, match: :first)
       end
     end

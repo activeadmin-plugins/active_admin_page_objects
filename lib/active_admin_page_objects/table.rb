@@ -14,12 +14,18 @@ module ActiveAdminPageObjects
     selector_key :table
 
     class << self
-      # Declares column +key+ with the +label+ of its header. Without a
-      # label the key is known but its header is not compared.
-      def column(key, label = nil)
+      # Declares column +key+ with the +label+ of its header: "" for the
+      # selection and actions columns.
+      def column(key, label)
         declare(key, label)
       end
     end
+
+    # ActiveAdmin 4 writes no `data-column` on the selection and actions
+    # columns: their headers have no title. These are their keys.
+    SELECTION_COLUMN = "selectable"
+    ACTIONS_COLUMN = "actions"
+    private_constant :SELECTION_COLUMN, :ACTIONS_COLUMN
 
     # One `<tr>` of the table body.
     class Row < Section
@@ -96,15 +102,27 @@ module ActiveAdminPageObjects
       eventually(**options) { !header_names_match?(names) }
     end
 
-    # True when every declared column has exactly its declared header label.
-    # Columns that are not declared, and the column order, are not checked.
-    def has_declared_columns?(**options)
-      declared_labels?(**options)
+    # True when every declared column in scope has exactly its declared
+    # header label. Columns that are not declared, and the column order, are
+    # not checked. +only+ and +except+ take declared keys.
+    def has_declared_columns?(only: nil, except: nil, **options)
+      declared_match?(true, exact: false, only: only, except: except, **options)
     end
 
-    # Waits until a declared column has another header label, or is missing.
-    def has_no_declared_columns?(**options)
-      no_declared_labels?(**options)
+    # Waits until a declared column in scope has another header label, or is missing.
+    def has_no_declared_columns?(only: nil, except: nil, **options)
+      declared_match?(false, exact: false, only: only, except: except, **options)
+    end
+
+    # Like #has_declared_columns?, and the table has no column that is not
+    # declared, the selection and actions columns included.
+    def has_exact_columns?(only: nil, except: nil, **options)
+      declared_match?(true, exact: true, only: only, except: except, **options)
+    end
+
+    # Waits until the columns differ from the declared ones.
+    def has_no_exact_columns?(only: nil, except: nil, **options)
+      declared_match?(false, exact: true, only: only, except: except, **options)
     end
 
     # True when the body has +count+ rows, or any row when +count+ is nil.
@@ -129,8 +147,37 @@ module ActiveAdminPageObjects
       actual.size == expected.size && actual.zip(expected).all? { |a, e| same_text?(a, e) }
     end
 
-    def declared_label_text(key)
-      label_text(sel(:table_column_header, key))
+    def declared_label_text(key, _declaration)
+      label_text(sel(:table_column_header, key)) || untitled_header_label(key)
+    end
+
+    def page_element_keys
+      keyed_headers.map(&:first)
+    end
+
+    # Each header with its key: its `data-column`, or the key of the selection
+    # or actions column. Any other untitled column has no key and is left out.
+    def keyed_headers
+      all(:active_admin, :table_header, visible: :all, wait: false).each_with_index.filter_map do |header, index|
+        key = header[:"data-column"].to_s
+        key = untitled_column_key(header, index + 1) if key.empty?
+        [key, header] if key
+      end
+    end
+
+    # The selection header holds the toggle-all checkbox. The actions header
+    # is empty, so the column is known by the actions in its body cells.
+    def untitled_column_key(header, position)
+      return SELECTION_COLUMN if header.has_css?(sel(:batch_actions_toggle_all), visible: :all, wait: false)
+
+      ACTIONS_COLUMN if has_css?(sel(:table_actions_cell, position), visible: :all, wait: false)
+    end
+
+    def untitled_header_label(key)
+      return unless [SELECTION_COLUMN, ACTIONS_COLUMN].include?(key)
+
+      header = keyed_headers.assoc(key)&.last
+      header && squish(header.text(:all))
     end
   end
 end

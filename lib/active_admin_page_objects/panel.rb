@@ -18,5 +18,20 @@ module ActiveAdminPageObjects
     def body
       find(:active_admin, :panel_body)
     end
+
+    # The links in the body: the text and the `href` attribute as written.
+    # @return [Array<Hash{Symbol => String}>] `{ text:, href: }` per link
+    def links
+      body.all("a", wait: false).map { |link| { text: link.text.strip, href: href_attribute(link) } }
+    end
+
+    private
+
+    # JavaScript drivers return the resolved `href` property; the attribute is what the page wrote.
+    def href_attribute(link)
+      link.session.evaluate_script("arguments[0].getAttribute('href')", link).to_s
+    rescue Capybara::NotSupportedByDriverError
+      link[:href].to_s
+    end
   end
 end

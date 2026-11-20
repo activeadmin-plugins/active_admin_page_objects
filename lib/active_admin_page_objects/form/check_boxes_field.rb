@@ -2,9 +2,16 @@
 
 module ActiveAdminPageObjects
   class Form
-    # A check_boxes input: one checkbox per choice.
-    class CheckBoxesInput < Input
+    # A check_boxes field: one checkbox per choice.
+    class CheckBoxesField < Field
       Form.register_type("check_boxes", self)
+
+      # Ticks the checkboxes labelled +labels+ and unticks the others.
+      def fill(labels)
+        labels = Array(labels).map(&:to_s)
+        uncheck(*(checked - labels))
+        check(*labels)
+      end
 
       # Ticks the checkboxes labelled +labels+.
       def check(*labels)

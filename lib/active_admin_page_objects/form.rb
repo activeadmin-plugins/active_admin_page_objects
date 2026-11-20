@@ -1,22 +1,24 @@
 # frozen_string_literal: true
 
 module ActiveAdminPageObjects
-  # A formtastic resource form (new and edit pages). Inputs are keyed by the
-  # attribute: `fill(:name, with: "Acme")`. Declare the fields, their labels
-  # and optionally their input class on the section:
+  # A formtastic resource form (new and edit pages). Fields are named by the
+  # attribute: `field(:email).fill("acme@example.com")`. Declare the fields
+  # with their labels and section classes on the section:
   #
   #   section :form, ActiveAdminPageObjects::Form do
-  #     field :name, "Name"
-  #     field :status, "Status", ActiveAdminPageObjects::Form::SelectInput
+  #     field :email, "Email", ActiveAdminPageObjects::Form::StringField
+  #     field :status, "Status", ActiveAdminPageObjects::Form::SelectField
   #   end
+  #
+  # Each declaration defines a method of its name: `form.status`.
   class Form < Section
     include SelectControl
-    include Declarations
+    include Fields
 
     selector_key :form
 
     class << self
-      # Input class per formtastic input class, shared with subclasses.
+      # Field class per formtastic input class, shared with subclasses.
       # @return [Hash{String => Class}]
       def types
         @types ||= superclass.respond_to?(:types) ? superclass.types : {}
@@ -27,27 +29,22 @@ module ActiveAdminPageObjects
         types[input_class.to_s] = klass
       end
 
-      # The class registered for the wrapper's formtastic class, or Input.
+      # The class registered for the wrapper's formtastic class, or Field.
       # @return [Class]
-      def input_class_for(wrapper)
+      def field_class_for(wrapper)
         classes = wrapper[:class].to_s.split
         types.each { |input_class, klass| return klass if classes.include?(input_class) }
-        Input
-      end
-
-      # Declares the field of attribute +key+ with its +label+. With +type+,
-      # `input(key)` raises unless the page has an input of that class.
-      def field(key, label = nil, type = nil)
-        declare(key, label, type)
+        Field
       end
     end
 
-    # One `li.input` wrapper of the form. `Form#input` returns the subclass
-    # registered for the wrapper's formtastic class, or this class.
-    class Input < Section
+    # One `li.input` wrapper of the form. `Form#field` returns the declared
+    # class, or the subclass registered for the wrapper's formtastic class, or
+    # this class.
+    class Field < Section
       include SelectControl
 
-      # Sets the input: types text, picks a select option by label, or ticks a checkbox for `true`.
+      # Sets the field: types text, picks a select option by label, or ticks a checkbox for `true`.
       def fill(value)
         if has_css?("select", visible: :all, wait: false)
           choose_option(root_element, value.to_s)
@@ -58,7 +55,7 @@ module ActiveAdminPageObjects
         end
       end
 
-      # Picks +option+ of a select or radio input.
+      # Picks +option+ of a select or radio field.
       def choose(option)
         if has_css?("input[type=radio]", wait: false)
           root_element.choose(option)
@@ -75,7 +72,7 @@ module ActiveAdminPageObjects
 
       private
 
-      # Each choice of a radio or check_boxes input: its label text and its input.
+      # Each choice of a radio or check_boxes field: its label text and its input.
       def choices
         all(:active_admin, :form_choice, visible: :all, wait: false).map do |label|
           [label.text(:all).strip, label.find("input", visible: :all)]
@@ -83,51 +80,9 @@ module ActiveAdminPageObjects
       end
     end
 
-    # The input wrapper for attribute +key+, e.g. a SelectInput for `as: :select`.
-    # @raise [Capybara::ExpectationNotMet] when the field is declared with another class
-    # @return [Input]
-    def input(key)
-      declaration = declaration_for(key)
-      wrapper = find(:css, input_selector(key))
-      klass = self.class.input_class_for(wrapper)
-      check_declared_type(key, declaration, klass)
-      klass.new(self, wrapper)
-    end
-
-    # Sets the input for attribute +key+ to +with+.
-    def fill(key, with:)
-      input(key).fill(with)
-    end
-
-    # Picks +option+ in the select or radio input for attribute +key+.
-    def choose(key, option)
-      input(key).choose(option)
-    end
-
     # Clicks the submit button.
     def submit
       find(:active_admin, :form_submit, match: :first).click
-    end
-
-    # True when the input for +key+ shows an inline error containing +text+.
-    def has_input_error?(key, text = nil, **options)
-      has_css?(input_error_selector(key), **(text ? { text: text } : {}), **options)
-    end
-
-    # Waits until the input for +key+ shows no such inline error.
-    def has_no_input_error?(key, text = nil, **options)
-      has_no_css?(input_error_selector(key), **(text ? { text: text } : {}), **options)
-    end
-
-    # True when every declared field has exactly its declared label. The
-    # required marker is not part of the label.
-    def has_declared_fields?(**options)
-      declared_labels?(**options)
-    end
-
-    # Waits until a declared field has another label, or is missing.
-    def has_no_declared_fields?(**options)
-      no_declared_labels?(**options)
     end
 
     # True when the base-error list shows every one of +messages+ (or any
@@ -147,6 +102,17 @@ module ActiveAdminPageObjects
       end
     end
 
+    # True when the base-error list is exactly +messages+: the same texts, in
+    # any order, or in the given order with +strict_order+.
+    def has_exact_semantic_errors?(*messages, strict_order: false, **options)
+      eventually(**options) { exact_semantic_errors?(messages, strict_order) }
+    end
+
+    # Waits until the base-error list differs from +messages+.
+    def has_no_exact_semantic_errors?(*messages, strict_order: false, **options)
+      eventually(**options) { !exact_semantic_errors?(messages, strict_order) }
+    end
+
     # The base-error texts.
     # @return [Array<String>]
     def semantic_errors
@@ -157,30 +123,25 @@ module ActiveAdminPageObjects
 
     # Formtastic ids inputs `<object_name>_<attribute>_input`; the object name
     # is the prefix of the first namespaced field name.
-    def object_name
+    def field_prefix
       field = find("input[name*='['], select[name*='['], textarea[name*='[']", match: :first, visible: :all)
       field[:name][/\A[^\[]+/]
     end
 
-    # Checks the key before #object_name queries the page.
-    def input_selector(key)
-      declaration_for(key)
-      sel(:form_input, object_name, slug(key))
+    def detected_field_class(wrapper)
+      self.class.field_class_for(wrapper)
     end
 
-    def input_error_selector(key)
-      "#{input_selector(key)} #{sel(:form_inline_error)}"
-    end
-
-    def declared_label_text(key)
-      input_label_text(sel(:form_input, object_name, key))
+    def exact_semantic_errors?(messages, strict_order)
+      actual, expected = [semantic_errors, messages].map { |texts| texts.map { |text| squish(text) } }
+      strict_order ? actual == expected : actual.sort == expected.sort
     end
   end
 end
 
-require_relative "form/string_input"
-require_relative "form/select_input"
-require_relative "form/boolean_input"
-require_relative "form/radio_input"
-require_relative "form/check_boxes_input"
-require_relative "form/date_picker_input"
+require_relative "form/string_field"
+require_relative "form/select_field"
+require_relative "form/boolean_field"
+require_relative "form/radio_field"
+require_relative "form/check_boxes_field"
+require_relative "form/date_picker_field"

@@ -2,9 +2,14 @@
 
 module ActiveAdminPageObjects
   class Form
-    # A select input. `fill` and `choose` pick an option by its text.
-    class SelectInput < Input
+    # A select field. `fill` picks an option by its text.
+    class SelectField < Field
       Form.register_type("select", self)
+
+      # Picks the option labelled +label+.
+      def fill(label)
+        choose_option(root_element, label.to_s)
+      end
 
       # The option texts, without the blank option.
       # @return [Array<String>]

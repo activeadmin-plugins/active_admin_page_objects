@@ -15,9 +15,8 @@ module ActiveAdminPageObjects
     selector_key :attributes_table
 
     class << self
-      # Declares row +key+ with the +label+ of its header cell. Without a
-      # label the key is known (for `has_no_row?`) but not compared.
-      def row(key, label = nil)
+      # Declares row +key+ with the +label+ of its header cell.
+      def row(key, label)
         declare(key, label)
       end
     end
@@ -44,14 +43,25 @@ module ActiveAdminPageObjects
       find(:css, cell_selector(key)).text.strip
     end
 
-    # True when every declared row has exactly its declared label.
-    def has_declared_rows?(**options)
-      declared_labels?(**options)
+    # True when every declared row in scope has exactly its declared label.
+    # +only+ and +except+ take declared keys.
+    def has_declared_rows?(only: nil, except: nil, **options)
+      declared_match?(true, exact: false, only: only, except: except, **options)
     end
 
-    # Waits until a declared row has another label, or is missing.
-    def has_no_declared_rows?(**options)
-      no_declared_labels?(**options)
+    # Waits until a declared row in scope has another label, or is missing.
+    def has_no_declared_rows?(only: nil, except: nil, **options)
+      declared_match?(false, exact: false, only: only, except: except, **options)
+    end
+
+    # Like #has_declared_rows?, and the table has no row that is not declared.
+    def has_exact_rows?(only: nil, except: nil, **options)
+      declared_match?(true, exact: true, only: only, except: except, **options)
+    end
+
+    # Waits until the rows differ from the declared ones.
+    def has_no_exact_rows?(only: nil, except: nil, **options)
+      declared_match?(false, exact: true, only: only, except: except, **options)
     end
 
     private
@@ -65,8 +75,13 @@ module ActiveAdminPageObjects
       "#{row_selector(key)} > td"
     end
 
-    def declared_label_text(key)
+    def declared_label_text(key, _declaration)
       label_text("#{sel(:attributes_table_row, key)} > th")
+    end
+
+    # A row without a title has no `data-row` and no key.
+    def page_element_keys
+      all(:css, sel(:attributes_table_rows), visible: :all, wait: false).map { |row| row[:"data-row"].to_s }
     end
   end
 end
