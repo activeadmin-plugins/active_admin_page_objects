@@ -1,17 +1,22 @@
 # frozen_string_literal: true
 
 module ActiveAdminPageObjects
-  # An index table. Set the expected headers on the section:
+  # An index table. Declare the columns and their header labels on the section:
   #
   #   section :table, ActiveAdminPageObjects::Table do
-  #     self.default_header_names = ["Id", "Name"]
+  #     column :id, "Id"
+  #     column :external_id, "External ID"
   #   end
   class Table < Section
+    include Declarations
+
     selector_key :table
 
     class << self
-      # Header texts `has_header_names?` compares against when given none.
-      attr_accessor :default_header_names
+      # Declares column +key+ with the +label+ of its header.
+      def column(key, label)
+        declare(key, label)
+      end
     end
 
     SORT_DIRECTIONS = %i[asc desc].freeze
@@ -53,7 +58,9 @@ module ActiveAdminPageObjects
 
       private
 
+      # The columns are declared on the table the row belongs to.
       def cell_selector(key)
+        Declarations.lookup(parent.class.declarations, key) if parent.class.respond_to?(:declarations)
         sel(:table_cell, slug(key))
       end
     end
@@ -84,6 +91,7 @@ module ActiveAdminPageObjects
     # on an unsorted column sorts descending.
     # @raise [Capybara::ElementNotFound] when the column is not sortable
     def sort_by(key, direction = nil)
+      declaration_for(key)
       return click_sort_link(key) if direction.nil?
 
       direction = checked_direction(direction)
@@ -108,24 +116,35 @@ module ActiveAdminPageObjects
 
     # True when column +key+ has a sort link.
     def has_sortable_column?(key)
+      declaration_for(key)
       has_css?(sel(:table_sortable_header, slug(key)))
     end
 
-    # True when the headers equal +names+ (or default_header_names), in order,
-    # ignoring case.
+    # True when the headers equal +names+, in order, ignoring case.
+    # @raise [ArgumentError] when no names are given
     def has_header_names?(*names, **options)
-      expected = names.empty? ? self.class.default_header_names : names
-      raise ArgumentError, "no header names given and #{self.class}.default_header_names is unset" unless expected
+      raise ArgumentError, "no header names given" if names.empty?
 
-      eventually(**options) { header_names_match?(Array(expected)) }
+      eventually(**options) { header_names_match?(names) }
     end
 
     # Waits until the headers differ from +names+.
+    # @raise [ArgumentError] when no names are given
     def has_no_header_names?(*names, **options)
-      expected = names.empty? ? self.class.default_header_names : names
-      raise ArgumentError, "no header names given and #{self.class}.default_header_names is unset" unless expected
+      raise ArgumentError, "no header names given" if names.empty?
 
-      eventually(**options) { !header_names_match?(Array(expected)) }
+      eventually(**options) { !header_names_match?(names) }
+    end
+
+    # True when every declared column has exactly its declared header label.
+    # Columns that are not declared, and the column order, are not checked.
+    def has_declared_columns?(**options)
+      declared_labels?(**options)
+    end
+
+    # Waits until a declared column has another header label, or is missing.
+    def has_no_declared_columns?(**options)
+      no_declared_labels?(**options)
     end
 
     # True when the body has +count+ rows, or any row when +count+ is nil.
@@ -174,6 +193,10 @@ module ActiveAdminPageObjects
     def header_names_match?(expected)
       actual = header_names
       actual.size == expected.size && actual.zip(expected).all? { |a, e| same_text?(a, e) }
+    end
+
+    def declared_label_text(key)
+      label_text(sel(:table_column_header, key))
     end
   end
 end

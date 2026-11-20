@@ -18,6 +18,85 @@ RSpec.describe ActiveAdminPageObjects::Filters do
     index.table.rows.map { |row| row.cell(:name).text }
   end
 
+  # A filter form over the page's element, with the filters the block declares.
+  def declared_filters(&)
+    Class.new(described_class, &).new(index, filters.root_element)
+  end
+
+  shared_examples "declared filters" do
+    before { index.load }
+
+    it "has the declared filter labels" do
+      expect(filters).to have_declared_filters
+      expect(filters.declared_label_mismatches).to eq({})
+    end
+
+    it "compares a declared label exactly" do
+      wrong_case = declared_filters do
+        filter :name, "Name"
+        filter :external_id, "External id"
+        filter :created_at, "Created At"
+        filter :notes, "Notes"
+      end
+      expect(wrong_case).to have_no_declared_filters
+      expect(wrong_case.has_declared_filters?(wait: 0)).to be(false)
+      expect(wrong_case.declared_label_mismatches)
+        .to eq("external_id" => "External ID", "created_at" => "Created at", "notes" => nil)
+      expect(declared_filters { filter :external_id, "External ID" }).to have_declared_filters
+    end
+
+    it "raises when a filter is declared with another class" do
+      mistyped = declared_filters do
+        filter :name, "Name", ActiveAdminPageObjects::NumericFilter
+        filter :balance, "Balance", ActiveAdminPageObjects::PredicateFilter
+      end
+      expect { mistyped.filter(:name) }.to raise_error(
+        Capybara::ExpectationNotMet,
+        ":name is declared as ActiveAdminPageObjects::NumericFilter, but the page has ActiveAdminPageObjects::StringFilter"
+      )
+      expect(mistyped.filter(:balance)).to be_a(ActiveAdminPageObjects::NumericFilter)
+      expect(mistyped).to have_declared_filters
+    end
+
+    it "takes any key without declarations" do
+      lenient = described_class.new(index, filters.root_element)
+      expect(lenient.filter(:external_id)).to be_a(ActiveAdminPageObjects::StringFilter)
+      expect { lenient.has_declared_filters? }.to raise_error(ArgumentError, /declares no labels/)
+    end
+  end
+
+  it_behaves_like "declared filters"
+
+  describe "declared filters" do
+    let(:strict_class) do
+      Class.new(described_class) do
+        filter :name, "Name", ActiveAdminPageObjects::StringFilter
+        filter :external_id, "External ID"
+      end
+    end
+
+    it "rejects an undeclared key before it queries the page" do
+      expect { strict_class.new(nil, nil).filter(:email) }
+        .to raise_error(ArgumentError, /:email is not declared; declared keys: name, external_id/)
+    end
+
+    it "takes a declared key as a symbol, a string or a label" do
+      index.load
+      strict = strict_class.new(index, filters.root_element)
+      expect(strict.filter(:external_id)).to be_a(ActiveAdminPageObjects::StringFilter)
+      expect(strict.filter("external_id")).to be_a(ActiveAdminPageObjects::StringFilter)
+      expect(strict.filter("External ID")).to be_a(ActiveAdminPageObjects::StringFilter)
+    end
+
+    it "inherits declarations and leaves the superclass unchanged" do
+      subclass = Class.new(strict_class) { filter :email, "Email" }
+      expect(subclass.declarations.keys).to eq(%w[name external_id email])
+      expect(subclass.declarations["name"]).to eq(label: "Name", type: ActiveAdminPageObjects::StringFilter)
+      expect(strict_class.declarations.keys).to eq(%w[name external_id])
+      expect(described_class.declarations).to be_empty
+    end
+  end
+
   it "returns a typed section per filter" do
     index.load
     expect(filters.filter(:name)).to be_a(ActiveAdminPageObjects::StringFilter)
@@ -167,6 +246,8 @@ RSpec.describe ActiveAdminPageObjects::Filters do
 
   # "Clear Filters" is left out: ActiveAdmin 3 clears in JavaScript.
   context "with rack_test", driver: :rack_test do
+    it_behaves_like "declared filters"
+
     it "fills in values, selects and sets ranges without JavaScript" do
       index.load
       filters.filter(:name).fill_in(with: "Alpha", predicate: "Contains")

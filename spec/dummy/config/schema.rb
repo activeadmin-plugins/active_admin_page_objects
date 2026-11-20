@@ -26,6 +26,9 @@ ActiveRecord::Schema.define do
     t.boolean :active, default: true, null: false
     t.references :category
     t.text :notes
+    t.string :external_id, :website, :phone, :tier
+    t.text :channels
+    t.date :signed_on
     t.timestamps
   end
 

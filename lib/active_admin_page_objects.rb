@@ -48,6 +48,7 @@ end
 end
 
 require_relative "active_admin_page_objects/section"
+require_relative "active_admin_page_objects/declarations"
 require_relative "active_admin_page_objects/select_control"
 require_relative "active_admin_page_objects/status_tag"
 require_relative "active_admin_page_objects/panel"

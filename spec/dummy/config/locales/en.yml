@@ -1,0 +1,5 @@
+en:
+  activerecord:
+    attributes:
+      customer:
+        external_id: External ID

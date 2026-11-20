@@ -5,8 +5,9 @@ ActiveAdmin.register Customer do
   config.per_page = 5
   config.comments = true
 
-  permit_params :name, :email, :status, :balance, :active, :category_id, :notes,
-                orders_attributes: %i[id reference state quantity _destroy]
+  permit_params :name, :email, :external_id, :status, :balance, :active, :category_id, :notes,
+                :website, :phone, :password, :tier, :signed_on,
+                channels: [], orders_attributes: %i[id reference state quantity _destroy]
 
   scope :all, default: true
   scope(:active) { |customers| customers.where(active: true) }
@@ -14,6 +15,7 @@ ActiveAdmin.register Customer do
 
   filter :name
   filter :email
+  filter :external_id
   filter :balance
   filter :status, as: :select, collection: Customer::STATUSES
   filter :category
@@ -62,6 +64,7 @@ ActiveAdmin.register Customer do
     id_column
     column :name
     column :email
+    column :external_id
     column(:status) { |customer| status_tag(customer.status) }
     column :balance
     column :active
@@ -74,6 +77,7 @@ ActiveAdmin.register Customer do
     attributes_table do
       row :name
       row :email
+      row :external_id
       row(:status) { |customer| status_tag(customer.status) }
       row :balance
       row :category
@@ -99,13 +103,20 @@ ActiveAdmin.register Customer do
   form do |f|
     f.semantic_errors
     f.inputs do
-      f.input :name
-      f.input :email
+      f.input :name, as: :string
+      f.input :email, as: :email
+      f.input :external_id, as: :string
       f.input :status, as: :select, collection: Customer::STATUSES
-      f.input :category
-      f.input :balance
-      f.input :active
-      f.input :notes
+      f.input :category, as: :select
+      f.input :balance, as: :number
+      f.input :active, as: :boolean
+      f.input :notes, as: :text
+      f.input :website, as: :url
+      f.input :phone, as: :phone
+      f.input :password, as: :password
+      f.input :tier, as: :radio, collection: Customer::TIERS
+      f.input :channels, as: :check_boxes, collection: Customer::CHANNELS
+      f.input :signed_on, as: :datepicker
     end
     f.has_many :orders, heading: "Orders", allow_destroy: true do |o|
       o.input :reference

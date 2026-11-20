@@ -10,10 +10,11 @@ module ActiveAdminPageObjects
     class Fieldset < Section
       include SelectControl
 
-      # The input wrapper for attribute +key+ of this nested record.
+      # The input wrapper for attribute +key+ of this nested record, typed like the form's.
       # @return [Form::Input]
       def input(key)
-        Form::Input.new(self, find(:css, sel(:form_input, prefix, slug(key))))
+        wrapper = find(:css, sel(:form_input, prefix, slug(key)))
+        Form.input_class_for(wrapper).new(self, wrapper)
       end
 
       # Sets the input for attribute +key+ to +with+.

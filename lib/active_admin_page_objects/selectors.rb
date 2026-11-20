@@ -47,6 +47,7 @@ module ActiveAdminPageObjects
 
       table: "table.index_table",
       table_header: "thead th.col",
+      table_column_header: "thead th.col-%s",
       table_sortable_header: "thead th.sortable.col-%s",
       table_sorted_header: "thead th.sorted-asc, thead th.sorted-desc",
       table_sort_link: "a",
@@ -106,6 +107,7 @@ module ActiveAdminPageObjects
 
       form: "form.formtastic:not(.active_admin_comment)",
       form_input: "li#%s_%s_input",
+      form_choice: "li.choice label",
       form_inline_error: "p.inline-errors",
       form_semantic_error: "ul.errors > li",
       form_submit: "fieldset.actions input[type=submit], fieldset.actions button[type=submit]",

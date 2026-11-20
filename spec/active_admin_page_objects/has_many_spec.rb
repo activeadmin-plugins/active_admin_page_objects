@@ -28,6 +28,8 @@ RSpec.describe ActiveAdminPageObjects::HasMany do
       expect(orders.fieldset(0).input(:reference)).to have_field(with: "REF-1")
       expect(orders.fieldset(1).input(:reference)).to have_field(with: "REF-B1")
       expect(orders.fieldset(0).input(:quantity)).to have_field(with: "2")
+      expect(orders.fieldset(0).input(:quantity)).to be_a(ActiveAdminPageObjects::Form::StringInput)
+      expect(orders.fieldset(0).input(:state).selected).to eq("paid")
     end
 
     it "adds a fieldset, fills it and saves the order" do
