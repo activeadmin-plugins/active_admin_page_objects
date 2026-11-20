@@ -15,8 +15,9 @@ module ActiveAdminPageObjects
     selector_key :attributes_table
 
     class << self
-      # Declares row +key+ with the +label+ of its header cell.
-      def row(key, label)
+      # Declares row +key+ with the +label+ of its header cell. Without a
+      # label the key is known (for `has_no_row?`) but not compared.
+      def row(key, label = nil)
         declare(key, label)
       end
     end

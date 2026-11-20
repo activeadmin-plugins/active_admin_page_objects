@@ -37,7 +37,7 @@ module ActiveAdminPageObjects
 
       # Declares the field of attribute +key+ with its +label+. With +type+,
       # `input(key)` raises unless the page has an input of that class.
-      def field(key, label, type = nil)
+      def field(key, label = nil, type = nil)
         declare(key, label, type)
       end
     end

@@ -88,6 +88,25 @@ RSpec.describe ActiveAdminPageObjects::Filters do
       expect(strict.filter("External ID")).to be_a(ActiveAdminPageObjects::StringFilter)
     end
 
+    it "leaves links a plugin appends to the label out of it" do
+      index.load
+      page.execute_script(<<~JS)
+        document.querySelector("#q_created_at_input label").insertAdjacentHTML("beforeend", '<a href="#">Set range</a>')
+      JS
+      expect(filters.root_element).to have_link("Set range")
+      expect(declared_filters { filter :created_at, "Created at" }).to have_declared_filters
+    end
+
+    it "knows a key declared without a label but does not compare it" do
+      index.load
+      known = declared_filters do
+        filter :name, "Name"
+        filter :email
+      end
+      expect(known.filter(:email)).to be_a(ActiveAdminPageObjects::StringFilter)
+      expect(known.declared_label_mismatches).to eq({})
+    end
+
     it "inherits declarations and leaves the superclass unchanged" do
       subclass = Class.new(strict_class) { filter :email, "Email" }
       expect(subclass.declarations.keys).to eq(%w[name external_id email])
