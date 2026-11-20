@@ -33,6 +33,16 @@ module ActiveAdminPageObjects
       find_item(labels).nil?
     end
 
+    # The labels of the top-level items, or of the submenu at the label path
+    # +parents+, in menu order: `labels("Catalog") # => ["Categories", "Orders"]`.
+    # @return [Array<String>]
+    def labels(*parents)
+      scope = parents.empty? ? root_element : find_item(parents)
+      raise Capybara::ElementNotFound, "no menu item #{parents.inspect}" if scope.nil?
+
+      children(scope).map { |li| label_of(li) }
+    end
+
     # The label path of the current item, e.g. `["Catalog", "Orders"]`.
     # @return [Array<String>]
     def current_labels

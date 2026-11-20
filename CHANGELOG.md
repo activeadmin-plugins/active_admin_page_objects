@@ -4,6 +4,7 @@
 
 ### Added
 
+- `MainMenu#labels(*parents)` lists the item labels at a menu level.
 - Version 1.0.0.alpha: page objects for vanilla ActiveAdmin 3 only. The gem depends on `activeadmin` (>= 3.0, < 4.0.0.a). Vanilla ActiveAdmin 4 is the 2.x line on `main`.
 - SitePrism page and sections for vanilla ActiveAdmin 3: layout, breadcrumbs, action items, flashes, main menu, index table, attributes table, panel, filters (string, numeric, select, boolean, date range), scopes, pagination, batch actions and formtastic forms.
 - `HasMany`, reached with `form.has_many(:orders)`: count, add and remove fieldsets, and fill their inputs.
