@@ -27,6 +27,16 @@ require "active_admin_page_objects"
 
 Runtime dependencies: `activeadmin` (>= 4.0.0.beta1, < 5.0.0.a), `site_prism` (>= 5.0, < 7) and `capybara` (>= 3.37).
 
+### Rails 8 setup
+
+```ruby
+RSpec.configure do |config|
+  # Rails 8 loads routes lazily. A first request to a literal URL then loads them inside the
+  # Capybara server thread, which breaks the Devise session lookup.
+  config.before(:suite) { Rails.application.reload_routes_unless_loaded }
+end
+```
+
 ## Usage
 
 Write one page class per ActiveAdmin page and declare the sections it uses:
@@ -36,7 +46,9 @@ class CustomerIndex < ActiveAdminPageObjects::Page
   set_url "/admin/customers{?query*}"
 
   section :table, ActiveAdminPageObjects::Table do
-    self.default_header_names = ["Id", "Name", "Email"]
+    column :id, "Id"
+    column :name, "Name"
+    column :email, "Email"
   end
   section :filters, ActiveAdminPageObjects::Filters
   section :scopes, ActiveAdminPageObjects::Scopes
@@ -46,8 +58,10 @@ end
 
 index = CustomerIndex.new
 index.load
-expect(index.table).to have_header_names
+expect(index.table).to have_declared_columns
 ```
+
+The `column` lines declare the header labels that `have_declared_columns` checks. A section without them takes any key and has no label check: see [Declared labels](#declared-labels).
 
 Every `element` and `section` also gets SitePrism's `has_<name>?` and `has_no_<name>?` predicates, so `expect(index).to have_no_pagination` works.
 
@@ -110,7 +124,7 @@ page_object.main_menu.labels("Catalog") # => ["Categories", "Orders"]
 
 ### Table
 
-Cells are keyed by column: `:external_id` or `"External ID"` both match `data-column="external_id"`. Header names compare case-insensitively, because ActiveAdmin 4 uppercases `th` in CSS and Chrome reports the uppercased text.
+Cells are keyed by column: `:external_id` or `"External ID"` both match `data-column="external_id"`. `have_header_names` takes every header in order and compares case-insensitively, because ActiveAdmin 4 uppercases `th` in CSS and Chrome reports the uppercased text. To check the exact labels, declare the columns: see [Declared labels](#declared-labels).
 
 ```ruby
 table = index.table
@@ -244,9 +258,104 @@ expect(form).to have_semantic_errors("Name is reserved")
 form.input(:email).errors # => ["is invalid"]
 ```
 
+`input(key)` returns the section typed by the formtastic input class. Every one has `fill`, `choose` and `errors`.
+
+- `Form::StringInput` for `string`, `email`, `url`, `phone`, `password`, `number` and `text`: `value`.
+- `Form::SelectInput` for `select`: `options` (without the blank option) and `selected`.
+- `Form::BooleanInput` for `boolean`: `checked?`.
+- `Form::RadioInput` for `radio`: `options` and `selected`.
+- `Form::CheckBoxesInput` for `check_boxes`: `check(*labels)`, `uncheck(*labels)` and `checked`.
+- `Form::DatePickerInput` for `date_picker`, a native `<input type="date">`: `fill` takes a Date or a string such as `"2026-01-31"`.
+- `Form::Input` for any other class.
+
+```ruby
+form.input(:status).options # => ["active", "pending", "closed"]
+form.input(:status).selected # => "pending", or nil for the blank option
+expect(form.input(:active)).to be_checked
+form.input(:tier).selected # => "Gold", the chosen radio button
+form.input(:channels).check("Email", "Post")
+form.input(:channels).checked # => ["Email", "Post"]
+form.fill(:signed_on, with: Date.new(2026, 1, 31))
+```
+
 ### Tabs
 
 ActiveAdmin 4 removed the `tabs` component. `ActiveAdminPageObjects::Tabs` raises `RemovedInActiveAdmin4`. A theme that brings tabs back registers a `tabs` selector and patches the section.
+
+## Declared labels
+
+Sections find elements by key, so `row(:external_id)` passes whatever its label says. Declare each key with its label on the section, then check every label with one matcher.
+
+```ruby
+class CustomerIndex < ActiveAdminPageObjects::Page
+  set_url "/admin/customers{?query*}"
+
+  section :table, ActiveAdminPageObjects::Table do
+    column :id, "Id"
+    column :external_id, "External ID"
+  end
+  section :filters, ActiveAdminPageObjects::Filters do
+    filter :external_id, "External ID"
+    filter :balance, "Balance", ActiveAdminPageObjects::NumericFilter
+  end
+end
+
+class CustomerShow < ActiveAdminPageObjects::Page
+  set_url "/admin/customers/{id}"
+
+  section :attributes_table, ActiveAdminPageObjects::AttributesTable do
+    row :name, "Name"
+    row :external_id, "External ID"
+  end
+end
+
+class CustomerForm < ActiveAdminPageObjects::Page
+  set_url "/admin/customers{/id}{/action}"
+
+  section :form, ActiveAdminPageObjects::Form do
+    field :name, "Name"
+    field :status, "Status", ActiveAdminPageObjects::Form::SelectInput
+  end
+end
+
+expect(index.table).to have_declared_columns
+expect(index.filters).to have_declared_filters
+expect(show.attributes_table).to have_declared_rows
+expect(form_page.form).to have_declared_fields
+```
+
+SitePrism 5 and 6 turn the block into a subclass of the section class. A named subclass takes the same lines in its class body. A subclass inherits the declarations of its superclass and adds its own.
+
+### Label matchers
+
+`have_declared_columns`, `have_declared_filters`, `have_declared_rows` and `have_declared_fields` compare each declared label with the text in the DOM. The comparison is exact and case-sensitive, so `"External id"` does not match `"External ID"`. Only whitespace is normalized.
+
+- CSS `text-transform` does not change the result, on any driver. ActiveAdmin 4 uppercases the `th` of both tables in CSS; declare the label as the DOM has it, such as `"External ID"`.
+- The required marker (`*`) of a form label is not part of the label.
+- The order is not checked. Elements that are on the page but not declared are ignored.
+- They wait like the other matchers. `have_no_declared_columns` and the other three wait until a label differs.
+- They raise `ArgumentError` on a section that declares nothing.
+
+When a matcher fails, `declared_label_mismatches` returns each failing key with the label found, or `nil` when the page has no such element:
+
+```ruby
+index.table.declared_label_mismatches # => { "external_id" => "External Id", "secret" => nil }
+```
+
+### Strict keys
+
+A section that declares anything raises `ArgumentError` for every other key, before it queries the page. The message names the key and lists the declared keys. A section without declarations takes any key, as before.
+
+- `AttributesTable`: `has_row?`, `has_no_row?`, `row` and `value`.
+- `Table`: its rows' `cell`, `has_cell?` and `has_no_cell?`.
+- `Filters`: `filter`.
+- `Form`: `input`, `fill`, `choose`, `has_input_error?` and `has_no_input_error?`.
+
+Keys compare as everywhere else: `:external_id`, `"external_id"` and `"External ID"` are the same key.
+
+### Declared types
+
+`filter` and `field` take a section class as the third argument. `filters.filter(key)` and `form.input(key)`, and so `form.fill` and `form.choose`, then raise `Capybara::ExpectationNotMet` unless the page has an input of that class or a subclass. The message names both classes.
 
 ## JavaScript driver
 
@@ -297,7 +406,7 @@ ActiveAdminPageObjects::Layout.add_section(:audit_panel, AuditPanel)
 ActiveAdminPageObjects::Layout.add_element(:banner, ".banner")
 ```
 
-Register a section for a custom filter input class with `ActiveAdminPageObjects::Filters.register_type("my_input", MyFilter)`.
+Register a section for a custom filter input class with `ActiveAdminPageObjects::Filters.register_type("my_input", MyFilter)`, and for a custom form input class with `ActiveAdminPageObjects::Form.register_type("my_input", MyInput)`. `MyInput` subclasses `ActiveAdminPageObjects::Form::Input`.
 
 ### Select widgets
 

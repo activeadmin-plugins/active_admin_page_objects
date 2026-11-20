@@ -41,6 +41,7 @@ Capybara.add_selector(:active_admin_panel) do
 end
 
 require_relative "active_admin_page_objects/section"
+require_relative "active_admin_page_objects/declarations"
 require_relative "active_admin_page_objects/select_control"
 require_relative "active_admin_page_objects/breadcrumbs"
 require_relative "active_admin_page_objects/action_items"

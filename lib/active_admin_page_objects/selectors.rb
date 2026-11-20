@@ -32,6 +32,7 @@ module ActiveAdminPageObjects
 
       table: "table.data-table",
       table_header: "thead th",
+      table_column_header: 'thead th[data-column="%s"]',
       table_row: "tbody > tr",
       table_row_by_id: 'tbody > tr[id$="_%s"]',
       table_cell: 'td[data-column="%s"]',
@@ -72,6 +73,7 @@ module ActiveAdminPageObjects
 
       form: "form.formtastic",
       form_input: "li#%s_%s_input",
+      form_choice: "li.choice label",
       form_inline_error: ".inline-errors",
       form_semantic_error: "ul.errors > li",
       form_submit: "fieldset.actions input[type=submit], fieldset.actions button[type=submit]",

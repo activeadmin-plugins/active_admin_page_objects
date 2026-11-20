@@ -3,10 +3,16 @@
 module ActiveAdminPageObjects
   # Text helpers shared by the sections.
   module Text
+    # Collapses whitespace runs to one space and strips the ends.
+    # @return [String]
+    def squish(text)
+      text.to_s.gsub(/[[:space:]]+/, " ").strip
+    end
+
     # Squishes whitespace and case-folds, so "ID " matches "Id".
     # @return [String]
     def normalize_text(text)
-      text.to_s.gsub(/[[:space:]]+/, " ").strip.downcase(:fold)
+      squish(text).downcase(:fold)
     end
 
     # True when both texts are equal after #normalize_text.

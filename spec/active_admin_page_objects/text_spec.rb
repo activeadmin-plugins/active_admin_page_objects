@@ -7,6 +7,10 @@ RSpec.describe ActiveAdminPageObjects::Text do
     expect(ActiveAdminPageObjects.same_text?("Created", "Created at")).to be(false)
   end
 
+  it "squishes whitespace and keeps the case" do
+    expect(ActiveAdminPageObjects.squish("  External\n  ID ")).to eq("External ID")
+  end
+
   it "slugs keys the way ActiveAdmin writes data-column" do
     expect(ActiveAdminPageObjects.slug("EXTERNAL ID")).to eq("external_id")
     expect(ActiveAdminPageObjects.slug(:external_id)).to eq("external_id")
