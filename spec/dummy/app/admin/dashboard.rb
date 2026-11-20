@@ -6,6 +6,10 @@ ActiveAdmin.register_page "Dashboard" do
   content title: proc { I18n.t("active_admin.dashboard") } do
     panel "Welcome" do
       para "Hello from the dashboard."
+      ul do
+        li a("Customers", href: admin_customers_path)
+        li a("Docs", href: "https://example.com/docs")
+      end
     end
     panel "Stats" do
       para "Nothing yet."

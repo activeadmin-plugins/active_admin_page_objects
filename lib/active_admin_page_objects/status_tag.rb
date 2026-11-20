@@ -6,6 +6,20 @@ module ActiveAdminPageObjects
   class StatusTag < Section
     selector_key :status_tag
 
+    # `has_status_tag?` for the sections whose cells hold status tags.
+    module Matchers
+      private
+
+      # Waits until the cell +cell_css+ has (+expected+ true) or lacks a
+      # status tag with +label+ and +type+.
+      def status_tag_match?(expected, cell_css, label, type, **options)
+        eventually(**options) do
+          node = first(:css, "#{cell_css} #{sel(:status_tag)}", minimum: 0, wait: false)
+          (!node.nil? && StatusTag.new(self, node).match?(label, type: type)) == expected
+        end
+      end
+    end
+
     # The tag text as rendered in the DOM, e.g. "Pending". ActiveAdmin 3's
     # CSS uppercases it on screen, so this reads the text before that.
     # @return [String]
@@ -28,6 +42,12 @@ module ActiveAdminPageObjects
     # Waits until the tag lacks the class +type+.
     def has_no_type?(type, **options)
       eventually(**options) { !type_match?(type) }
+    end
+
+    # True when the label equals +label+, ignoring case, and the tag has
+    # every class of +type+. Does not wait.
+    def match?(label, type: nil)
+      same_text?(self.label, label) && (type.nil? || type_match?(type))
     end
 
     # True when the label equals +text+, ignoring case.

@@ -13,9 +13,9 @@ module ActiveAdminPageObjects
     selector_key :table
 
     class << self
-      # Declares column +key+ with the +label+ of its header. Without a
-      # label the key is known but its header is not compared.
-      def column(key, label = nil)
+      # Declares column +key+ with the +label+ of its header: "" for the
+      # selection and actions columns.
+      def column(key, label)
         declare(key, label)
       end
     end
@@ -24,6 +24,8 @@ module ActiveAdminPageObjects
 
     # One `<tr>` of the table body.
     class Row < Section
+      include StatusTag::Matchers
+
       # The record id from the row's `id="<resource>_<id>"`.
       # @return [String]
       def record_id
@@ -55,6 +57,17 @@ module ActiveAdminPageObjects
       # @return [StatusTag]
       def status_tag(key)
         StatusTag.new(self, cell(key).find(:active_admin, :status_tag))
+      end
+
+      # True when the status tag of column +key+ has +label+, ignoring case,
+      # and every class of +type+.
+      def has_status_tag?(key, label, type: nil, **options)
+        status_tag_match?(true, cell_selector(key), label, type, **options)
+      end
+
+      # Waits until column +key+ has no such status tag.
+      def has_no_status_tag?(key, label, type: nil, **options)
+        status_tag_match?(false, cell_selector(key), label, type, **options)
       end
 
       private
@@ -137,15 +150,27 @@ module ActiveAdminPageObjects
       eventually(**options) { !header_names_match?(names) }
     end
 
-    # True when every declared column has exactly its declared header label.
-    # Columns that are not declared, and the column order, are not checked.
-    def has_declared_columns?(**options)
-      declared_labels?(**options)
+    # True when every declared column in scope has exactly its declared
+    # header label. Columns that are not declared, and the column order, are
+    # not checked. +only+ and +except+ take declared keys.
+    def has_declared_columns?(only: nil, except: nil, **options)
+      declared_match?(true, exact: false, only: only, except: except, **options)
     end
 
-    # Waits until a declared column has another header label, or is missing.
-    def has_no_declared_columns?(**options)
-      no_declared_labels?(**options)
+    # Waits until a declared column in scope has another header label, or is missing.
+    def has_no_declared_columns?(only: nil, except: nil, **options)
+      declared_match?(false, exact: false, only: only, except: except, **options)
+    end
+
+    # Like #has_declared_columns?, and the table has no column that is not
+    # declared, the selection and actions columns included.
+    def has_exact_columns?(only: nil, except: nil, **options)
+      declared_match?(true, exact: true, only: only, except: except, **options)
+    end
+
+    # Waits until the columns differ from the declared ones.
+    def has_no_exact_columns?(only: nil, except: nil, **options)
+      declared_match?(false, exact: true, only: only, except: except, **options)
     end
 
     # True when the body has +count+ rows, or any row when +count+ is nil.
@@ -196,8 +221,12 @@ module ActiveAdminPageObjects
       actual.size == expected.size && actual.zip(expected).all? { |a, e| same_text?(a, e) }
     end
 
-    def declared_label_text(key)
+    def declared_label_text(key, _declaration)
       label_text(sel(:table_column_header, key))
+    end
+
+    def page_element_keys
+      all(:active_admin, :table_header, visible: :all, wait: false).filter_map { |header| column_key(header) }
     end
   end
 end

@@ -4,14 +4,20 @@
 
 ### Added
 
-- Declared labels: `AttributesTable.row(key, label = nil)`, `Table.column(key, label = nil)`, `Filters.filter(key, label = nil, type = nil)` and `Form.field(key, label = nil, type = nil)` declare a section's keys and labels, also inside a `section ... do` block. `have_declared_rows`, `have_declared_columns`, `have_declared_filters` and `have_declared_fields` compare the labels with the page exactly. `declared_label_mismatches` returns the labels that differ.
-- A section with declarations raises `ArgumentError` for an undeclared key before it queries the page.
-- `Filters#filter` and `Form#input` raise `Capybara::ExpectationNotMet` when the input is declared with another class.
-- Typed form inputs: `Form#input` and `HasMany::Fieldset#input` return `Form::StringInput`, `SelectInput`, `BooleanInput`, `RadioInput`, `CheckBoxesInput` or `DatePickerInput` by the formtastic input class. `Form.register_type(input_class, klass)` adds one.
+- Declared elements: `AttributesTable.row(key, label)`, `Table.column(key, label)`, `Filters.filter(name, label, type, attribute: name)` and `Form.field(name, label, type, attribute: name)` declare a section's elements with their labels, also inside a `section ... do` block. A filter or a field also needs its section class.
+- `have_declared_rows`, `have_declared_columns`, `have_declared_filters` and `have_declared_fields` compare the declared labels with the page exactly. `have_exact_rows`, `have_exact_columns`, `have_exact_filters` and `have_exact_fields` also fail when the page has an element that is not declared. All take `only:` and `except:`. `declared_label_mismatches` and `exact_mismatches` return what differs.
+- A declared filter or field defines a method of its name on the section. `Filters#filter` and `Form#field` return an instance of the declared class, and raise `Capybara::ExpectationNotMet` unless it is the detected class or a subclass of it. A name that is already a method of the section raises `ArgumentError`: pick another name and pass `attribute:`.
+- `Form.has_many(name, heading, attribute: name, &block)` declares a has_many block with the fields of its fieldsets, and defines a method of its name.
+- A section with declarations raises `ArgumentError` for an undeclared name before it queries the page.
+- Typed form fields: `Form#field` and `HasMany::Fieldset#field` return `Form::StringField`, `SelectField`, `BooleanField`, `RadioField`, `CheckBoxesField` or `DatePickerField` by the formtastic input class. Each has a `fill(value)` for its type. `fill_fields(**values)` fills several fields in order. `Form.register_type(input_class, klass)` adds a class.
+- Form errors: `have_field_error`, `have_field_errors`, `have_exact_field_errors`, `have_semantic_errors` and `have_exact_semantic_errors(*messages, strict_order: false)`, each with its `have_no_` form. Has_many fieldsets have the field error matchers too.
+- `have_status_tag(key, label, type: nil)` and `have_no_status_tag` on index rows and on the attributes table.
+- `Panel#links` and `Sidebar#links` list the links of the body as `{ text:, href: }`, with the href as a path.
+- `ActiveAdminPageObjects::RSpec::Matchers`, loaded with `require "active_admin_page_objects/rspec"`: the matcher names of capybara_active_admin 1.0.0, which call the predicate of a page object and that gem's matcher for anything else.
 - `MainMenu#labels(*parents)` lists the item labels at a menu level.
 - Version 1.0.0.alpha: page objects for vanilla ActiveAdmin 3 only. The gem depends on `activeadmin` (>= 3.0, < 4.0.0.a). Vanilla ActiveAdmin 4 is the 2.x line on `main`.
 - SitePrism page and sections for vanilla ActiveAdmin 3: layout, breadcrumbs, action items, flashes, main menu, index table, attributes table, panel, filters (string, numeric, select, boolean, date range), scopes, pagination, batch actions and formtastic forms.
-- `HasMany`, reached with `form.has_many(:orders)`: count, add and remove fieldsets, and fill their inputs.
+- `HasMany`, reached with `form.has_many(:orders)`: count, add and remove fieldsets, and fill their fields.
 - `StatusTag`, reached with `row.status_tag(:status)` and `attributes_table.status_tag(:status)`.
 - `Sidebar`, reached with `page.sidebar("Help")`. `page.panel` skips sidebar sections and the comments panel.
 - `ModalDialog`, reached with `page.modal_dialog`. `BatchActions#apply(label, inputs = {})` fills the dialog of an action with `confirm:` or `form:`.
@@ -20,7 +26,7 @@
 - `Tabs`, `UtilityNavigation` and `DropdownMenu` (`action_items.dropdown("More")`).
 - `ActiveAdminPageObjects.register_selectors(**map)` takes only the selector map.
 - `ActiveAdminPageObjects::Layout.add_section` and `Layout.add_element` add a section or an element to every page that includes `Layout`, including page classes defined earlier.
-- `ActiveAdminPageObjects::SelectControl` drives a native `<select>` for `SelectFilter`, `Form` and `Form::Input`. A gem with a JavaScript select widget prepends a module into it.
+- `ActiveAdminPageObjects::SelectControl` drives a native `<select>` for `SelectFilter` and `Form::Field`. A gem with a JavaScript select widget prepends a module into it.
 - `ActiveAdminPageObjects.check_version!` for theme and plugin page objects.
 - `dark_mode_toggle` and `user_menu_button` raise `NotInActiveAdmin3`: ActiveAdmin 3 has neither.
 

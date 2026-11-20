@@ -47,6 +47,11 @@ ActiveAdmin.register Customer do
 
   sidebar "Help", only: :index do
     para "Use the filters to narrow the list."
+    ul do
+      li link_to("Report", report_admin_customers_path)
+      li link_to("Active customers", admin_customers_path(scope: "active"))
+      li link_to("Top", "#")
+    end
   end
 
   sidebar "Summary", only: :show do
@@ -70,6 +75,7 @@ ActiveAdmin.register Customer do
     column :active
     column :category
     column "Created", :created_at
+    column :notes if params[:with_notes]
     actions
   end
 

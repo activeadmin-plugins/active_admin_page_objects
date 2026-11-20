@@ -63,7 +63,7 @@ index.load
 expect(index.table).to have_declared_columns
 ```
 
-The `column` lines declare the header labels that `have_declared_columns` checks. A section without them takes any key and has no label check: see [Declared labels](#declared-labels).
+The `column` lines declare the columns and the header labels that `have_declared_columns` checks. A section without them takes any key and has no label check: see [Declared labels](#declared-labels).
 
 Every `element` and `section` also gets SitePrism's `has_<name>?` and `has_no_<name>?` predicates, so `expect(index).to have_no_pagination` works.
 
@@ -199,7 +199,15 @@ table.status_tag(:status) # see Status tags
 
 ### Status tags
 
-`row.status_tag(key)` on an index row and `attributes_table.status_tag(key)` on a show page return a `StatusTag`.
+An index row and the attributes table of a show page match the status tag of a cell by its label and, with `type:`, its CSS classes:
+
+```ruby
+expect(index.table.row(customer.id)).to have_status_tag(:status, "Pending")
+expect(show.attributes_table).to have_status_tag(:status, "Pending", type: "pending")
+expect(show.attributes_table).to have_no_status_tag(:status, "Active")
+```
+
+`status_tag(key)` returns the `StatusTag`:
 
 ```ruby
 tag = show.attributes_table.status_tag(:status)
@@ -209,7 +217,7 @@ expect(tag).to have_type("pending")
 expect(tag).to have_label("pending")
 ```
 
-`label` returns the DOM text. ActiveAdmin 3's CSS uppercases it on screen. `have_label` ignores case.
+`label` returns the DOM text. ActiveAdmin 3's CSS uppercases it on screen. The matchers ignore the case of the label.
 
 ### Panel
 
@@ -223,9 +231,12 @@ end
 
 show.notes.title # => "Notes"
 expect(show.notes.body).to have_text("Pays late")
+show.notes.links # => [{ text: "Invoices", href: "/admin/invoices?customer=1" }]
 ```
 
 A sidebar section works the same way, with `ActiveAdminPageObjects::Sidebar` and the `:active_admin_sidebar` selector: `section :help, ActiveAdminPageObjects::Sidebar, :active_admin_sidebar, "Help"`.
+
+`links` lists the links of the body, each with its text and its `href` attribute as the page wrote it, on every driver.
 
 ### Comments
 
@@ -247,7 +258,7 @@ comments.delete("Called back") # accepts the browser confirmation
 
 ### Filters
 
-`filter(key)` returns the section typed by the filter input: `StringFilter`, `NumericFilter`, `SelectFilter`, `BooleanFilter` or `DateRangeFilter`. The key is the one given to `filter :key`; the section wraps `#q_<key>_input`.
+`filter(key)` returns the section typed by the filter input: `StringFilter`, `NumericFilter`, `SelectFilter`, `BooleanFilter` or `DateRangeFilter`. The key is the one given to `filter :key`; the section wraps `#q_<key>_input`. Filters that [declare their filters](#declared-labels) take the declared name and have a method per filter: `filters.balance`.
 
 ```ruby
 filters = index.filters
@@ -334,44 +345,61 @@ expect(index).to have_no_modal_dialog
 
 ### Form
 
-Inputs are keyed by attribute, as in `f.input :name`.
+Fields are named by attribute, as in `f.input :email`. A form that [declares its fields](#declared-labels) takes the declared names and has a method per field: `form.email`.
 
 ```ruby
 form = form_page.form # section :form, ActiveAdminPageObjects::Form
-form.fill(:name, with: "Acme") # text, number, textarea
-form.fill(:category, with: "Retail") # select, by option label
-form.fill(:active, with: false) # checkbox
-form.choose(:status, "pending") # select or radio
+form.field(:email).fill("acme@example.com")
+form.fill_fields(name: "Acme", category: "Retail", active: false) # in this order
 form.submit
-
-expect(form).to have_input_error(:email, "is invalid")
-expect(form).to have_semantic_errors("Name is reserved")
-form.input(:email).errors # => ["is invalid"]
 ```
 
-`input(key)` returns the section typed by the formtastic input class. Every one has `fill`, `choose` and `errors`.
+`field(name)` returns the section typed by the formtastic input class. `fill(value)` sets the field the way its type needs.
 
-- `Form::StringInput` for `string`, `email`, `url`, `phone`, `password`, `number` and `text`: `value`.
-- `Form::SelectInput` for `select`: `options` (without the blank option) and `selected`.
-- `Form::BooleanInput` for `boolean`: `checked?`.
-- `Form::RadioInput` for `radio`: `options` and `selected`.
-- `Form::CheckBoxesInput` for `check_boxes`: `check(*labels)`, `uncheck(*labels)` and `checked`.
-- `Form::DatePickerInput` for `datepicker`: `fill` takes a Date or a string and types it in. It does not use the jQuery UI datepicker.
-- `Form::Input` for any other class.
+- `Form::StringField` for `string`, `email`, `url`, `phone`, `password`, `number` and `text`: `fill` types the value. `value`.
+- `Form::SelectField` for `select`: `fill` picks the option with that label. `options` (without the blank option) and `selected`.
+- `Form::BooleanField` for `boolean`: `fill(true)` ticks the checkbox and `fill(false)` unticks it. `checked?`.
+- `Form::RadioField` for `radio`: `fill` picks the radio button with that label. `options` and `selected`.
+- `Form::CheckBoxesField` for `check_boxes`: `fill` takes an array of labels, ticks them and unticks the others. `check(*labels)`, `uncheck(*labels)` and `checked`.
+- `Form::DatePickerField` for `datepicker`: `fill` takes a Date or a string and types it in. It does not use the jQuery UI datepicker.
+- `Form::Field` for any other class: `fill` types text, picks a select option or ticks a checkbox, by what the wrapper holds.
+
+Every field also has `errors`, and `choose(option)` for a select or a radio button.
 
 ```ruby
-form.input(:status).options # => ["active", "pending", "closed"]
-form.input(:status).selected # => "pending", or nil for the blank option
-expect(form.input(:active)).to be_checked
-form.input(:tier).selected # => "Gold", the chosen radio button
-form.input(:channels).check("Email", "Post")
-form.input(:channels).checked # => ["Email", "Post"]
-form.fill(:signed_on, with: Date.new(2026, 1, 31))
+form.field(:status).options # => ["active", "pending", "closed"]
+form.field(:status).selected # => "pending", or nil for the blank option
+expect(form.field(:active)).to be_checked
+form.field(:tier).selected # => "Gold", the chosen radio button
+form.field(:channels).fill(%w[Email Post])
+form.field(:channels).checked # => ["Email", "Post"]
+form.field(:signed_on).fill(Date.new(2026, 1, 31))
 ```
+
+#### Form errors
+
+```ruby
+expect(form).to have_field_error(:email, "is invalid") # the inline error contains the text
+expect(form).to have_no_field_error(:name)
+expect(form).to have_field_errors # any inline error
+expect(form).to have_no_field_errors
+expect(form).to have_exact_field_errors(name: "can't be blank", email: ["is invalid"])
+form.field(:email).errors # => ["is invalid"]
+
+expect(form).to have_semantic_errors("Name is reserved") # every message is shown; ignores case
+expect(form).to have_exact_semantic_errors("Name is reserved", "Balance is negative")
+expect(form).to have_exact_semantic_errors("Name is reserved", "Balance is negative", strict_order: true)
+form.semantic_errors # => ["Name is reserved", "Balance is negative"]
+```
+
+- `have_field_errors` and `have_no_field_errors` look at the whole form, has_many fieldsets included.
+- `have_exact_field_errors` takes each field with its message, or an array of messages. Every one of these fields shows exactly these messages, and no other field shows an error. Without arguments it passes when no field shows an error. It leaves out the fields of has_many fieldsets: ask each fieldset. Its keywords are field names, so it takes no Capybara options.
+- `have_exact_semantic_errors` compares the base errors exactly and case-sensitively: the same messages, in any order. `strict_order: true` compares the order too. Without messages it passes when the form shows no base error.
+- `have_no_exact_field_errors` and `have_no_exact_semantic_errors` wait until the errors differ.
 
 ### Has many
 
-`form.has_many(association)` returns a `HasMany` for a `has_many` block. Fieldsets are 0-based and their inputs are keyed by attribute and typed, like the form's.
+`form.has_many(association)` returns a `HasMany` for a `has_many` block. Fieldsets are 0-based. A fieldset has the field methods of the form: `field`, `fill_fields` and the field error matchers.
 
 ```ruby
 orders = form.has_many(:orders)
@@ -380,13 +408,15 @@ orders.count # => 2
 expect(orders).to have_fieldsets(count: 2)
 
 fieldset = orders.add # clicks the add link, returns the new fieldset
-fieldset.fill(:reference, with: "REF-NEW")
-fieldset.choose(:state, "shipped")
-orders.fieldset(0).input(:quantity)
+fieldset.fill_fields(reference: "REF-NEW", state: "shipped")
+orders.fieldset(0).field(:quantity).value # => "2"
+expect(orders.fieldset(0)).to have_exact_field_errors(quantity: "must be greater than 0")
 orders.remove(2) # a new fieldset: its remove link
 orders.remove(0) # a saved one: ticks its delete checkbox
 expect(orders.fieldset(0)).to be_marked_for_destroy
 ```
+
+Declare the block on the form to get `form.orders` and a method per fieldset field: see [Declared has_many blocks](#declared-has_many-blocks).
 
 ### Tabs
 
@@ -404,18 +434,20 @@ expect(show.tabs).to have_tab("Orders")
 
 ## Declared labels
 
-Sections find elements by key, so `row(:external_id)` passes whatever its label says. Declare each key with its label on the section, then check every label with one matcher.
+Sections find elements by key, so `row(:external_id)` passes whatever its label says. Declare each element with its label on the section, then check all of them with one matcher.
 
 ```ruby
 class CustomerIndex < ActiveAdminPageObjects::Page
   set_url "/admin/customers{?query*}"
 
   section :table, ActiveAdminPageObjects::Table do
+    column :selectable, ""
     column :id, "Id"
     column :external_id, "External ID"
+    column :actions, ""
   end
   section :filters, ActiveAdminPageObjects::Filters do
-    filter :external_id, "External ID"
+    filter :external_id, "External ID", ActiveAdminPageObjects::StringFilter
     filter :balance, "Balance", ActiveAdminPageObjects::NumericFilter
   end
 end
@@ -424,7 +456,7 @@ class CustomerShow < ActiveAdminPageObjects::Page
   set_url "/admin/customers/{id}"
 
   section :attributes_table, ActiveAdminPageObjects::AttributesTable do
-    row :name, "Name"
+    row :email, "Email"
     row :external_id, "External ID"
   end
 end
@@ -433,51 +465,150 @@ class CustomerForm < ActiveAdminPageObjects::Page
   set_url "/admin/customers{/id}{/action}"
 
   section :form, ActiveAdminPageObjects::Form do
-    field :name, "Name"
-    field :status, "Status", ActiveAdminPageObjects::Form::SelectInput
+    field :email, "Email", ActiveAdminPageObjects::Form::StringField
+    field :status, "Status", ActiveAdminPageObjects::Form::SelectField
   end
 end
 
-expect(index.table).to have_declared_columns
-expect(index.filters).to have_declared_filters
-expect(show.attributes_table).to have_declared_rows
-expect(form_page.form).to have_declared_fields
+expect(index.table).to have_exact_columns
+expect(index.filters).to have_exact_filters
+expect(show.attributes_table).to have_exact_rows
+expect(form_page.form).to have_exact_fields
 ```
+
+- `row(key, label)` and `column(key, label)` need the label. An untitled column takes `""`: the selection column is `:selectable` and the actions column is `:actions`.
+- `filter(name, label, type, attribute: name)` and `field(name, label, type, attribute: name)` need the label and the section class.
 
 SitePrism 5 and 6 turn the block into a subclass of the section class. A named subclass takes the same lines in its class body. A subclass inherits the declarations of its superclass and adds its own.
 
-### Label matchers
+### Accessors
 
-`have_declared_columns`, `have_declared_filters`, `have_declared_rows` and `have_declared_fields` compare each declared label with the text in the DOM. The comparison is exact and case-sensitive, so `"External id"` does not match `"External ID"`. Only whitespace is normalized.
-
-- CSS `text-transform` does not change the result, on any driver.
-- In filter and form labels, the text of links, buttons and `abbr` elements is not part of the label. That drops the required marker (`*`) and controls that plugins append, such as the date range preset's "Set range" link.
-- The order is not checked. Elements that are on the page but not declared are ignored.
-- They wait like the other matchers. `have_no_declared_columns` and the other three wait until a label differs.
-- They raise `ArgumentError` on a section that declares nothing.
-
-When a matcher fails, `declared_label_mismatches` returns each failing key with the label found, or `nil` when the page has no such element:
+`filter` and `field` define a method of the declared name on the section. It returns `filter(name)` or `field(name)`:
 
 ```ruby
-index.table.declared_label_mismatches # => { "external_id" => "External Id", "secret" => nil }
+index.filters.balance.fill_in(with: 100, predicate: :gt)
+form_page.form.status.fill("pending")
 ```
 
-### Strict keys
+The declaration raises `ArgumentError` when the section already has a method of that name, public or private, its own or inherited. SitePrism sections have `name`, `title`, `text` and `select`, among others. Give the element another name and pass its attribute:
 
-A section that declares anything raises `ArgumentError` for every other key, before it queries the page. The message names the key and lists the declared keys. A section without declarations takes any key, as before.
+```ruby
+field :customer_name, "Name", ActiveAdminPageObjects::Form::StringField, attribute: :name
+filter :customer_name, "Name", ActiveAdminPageObjects::StringFilter, attribute: :name
+```
 
-- `AttributesTable`: `has_row?`, `has_no_row?`, `row`, `value` and `status_tag`.
-- `Table`: `sort_by` and `has_sortable_column?`. Its rows: `cell`, `has_cell?`, `has_no_cell?` and `status_tag`.
-- `Filters`: `filter`.
-- `Form`: `input`, `fill`, `choose`, `has_input_error?` and `has_no_input_error?`.
-
-A key declared without a label is known but not compared: `row :notes` lets `have_no_row(:notes)` check that the row is absent, and `column :actions` covers the untitled actions column.
-
-Keys compare as everywhere else: `:external_id`, `"external_id"` and `"External ID"` are the same key.
+`attribute:` is the key in the wrapper id: `:name` for `#customer_name_input` and for `#q_name_input`. A subclass can declare an inherited name again. Rows and columns get no method and take no `attribute:`.
 
 ### Declared types
 
-`filter` and `field` take a section class as the third argument. `filters.filter(key)` and `form.input(key)`, and so `form.fill` and `form.choose`, then raise `Capybara::ExpectationNotMet` unless the page has an input of that class or a subclass. The message names both classes.
+`filters.filter(name)` and `form.field(name)` return an instance of the declared class. An app can declare its own subclass, such as a `Select2Field < ActiveAdminPageObjects::Form::SelectField`.
+
+The declared class must be the class the gem detects for the wrapper, or a subclass of it. Otherwise the lookup raises `Capybara::ExpectationNotMet`, and the message names both classes. A section without declarations returns the detected class.
+
+### Declared has_many blocks
+
+`has_many(name, heading, attribute: name, &block)` declares a `has_many` block of a form. The form gets a method of that name, which returns the `HasMany`. The block declares the fields of a fieldset, by the same rules, and each fieldset gets a method per field.
+
+```ruby
+section :form, ActiveAdminPageObjects::Form do
+  field :email, "Email", ActiveAdminPageObjects::Form::StringField
+  has_many :gateways, "Gateways" do
+    field :gateway, "Gateway", ActiveAdminPageObjects::Form::SelectField, attribute: :gateway_id
+  end
+
+  def add_gateway(name)
+    gateways.add.gateway.fill(name)
+  end
+end
+
+form.gateways.add.gateway # the SelectField of the new fieldset
+form.gateways.fieldset(0).gateway.selected
+expect(form.gateways.fieldsets).to all(have_exact_fields)
+```
+
+- `heading` is the text of the block's `h3`. The form's label matchers compare it. Pass `nil` when the form uses `heading: false`.
+- `attribute:` is the association, when the name differs from it.
+- A form that declares has_many blocks raises `ArgumentError` from `has_many(association)` for any other association.
+
+### Label matchers
+
+`have_declared_columns`, `have_declared_filters`, `have_declared_rows` and `have_declared_fields` pass when every declared element is on the page with exactly its label. The comparison is exact and case-sensitive, so `"External id"` does not match `"External ID"`. Only whitespace is normalized.
+
+- CSS `text-transform` does not change the result, on any driver.
+- In filter and form labels, the text of links, buttons and `abbr` elements is not part of the label. That drops the required marker (`*`) and controls that plugins append, such as the date range preset's "Set range" link.
+- `have_declared_fields` on a form also compares the headings of the declared has_many blocks. The fields of a fieldset are compared on the fieldset.
+- The order is not checked. Elements that are on the page but not declared are ignored: the exact matchers catch those.
+- They wait like the other matchers. `have_no_declared_columns` and the other three wait until a label differs.
+- They raise `ArgumentError` on a section that declares nothing.
+
+### Exact matchers
+
+`have_exact_columns`, `have_exact_filters`, `have_exact_rows` and `have_exact_fields` pass when the label matcher passes and the page has no other element of that kind:
+
+- Rows: the `tr.row-*` of the attributes table.
+- Columns: the `th.col-*` of the table, the untitled selection and actions columns included.
+- Filters: the filter wrappers of the filter form.
+- Form fields: the input wrappers outside the has_many blocks, and each has_many block. Hidden inputs are not fields.
+- Fieldset fields: the input wrappers of the fieldset. The delete checkbox and a has_many block nested in the fieldset are left out.
+
+`have_no_exact_columns` and the other three wait until the page differs.
+
+### only and except
+
+The label matchers and the exact matchers take `only:` and `except:`: a declared name, or an array of them. A name that is not declared raises `ArgumentError`.
+
+```ruby
+expect(index.table).to have_exact_columns(except: :notes) # a column that only some users see
+expect(form_page.form).to have_declared_fields(only: %i[email status])
+```
+
+- `only:` checks these elements and ignores the rest of the page, so no element is unexpected.
+- `except:` skips these elements: the page may have them or not.
+
+### Mismatches
+
+When a matcher fails, ask the section what differs:
+
+```ruby
+index.table.declared_label_mismatches # => { "external_id" => "External Id", "secret" => nil }
+index.table.exact_mismatches
+# => { missing: ["secret"], unexpected: ["email"], labels: { "external_id" => "External Id" } }
+```
+
+`declared_label_mismatches` returns each failing name with the label found, or `nil` when the page has no such element. `exact_mismatches` splits them into `missing` and `labels`, and adds `unexpected`: the keys of the elements on the page that are not declared. Both take `only:` and `except:`.
+
+### Strict names
+
+A section that declares anything raises `ArgumentError` for every other name, before it queries the page. The message gives the name and lists the declared ones. A section without declarations takes any key, as before.
+
+- `AttributesTable`: `has_row?`, `has_no_row?`, `row`, `value`, `status_tag`, `has_status_tag?` and `has_no_status_tag?`.
+- `Table`: `sort_by` and `has_sortable_column?`. Its rows: `cell`, `has_cell?`, `has_no_cell?`, `status_tag`, `has_status_tag?` and `has_no_status_tag?`.
+- `Filters`: `filter`.
+- `Form` and the fieldsets of a declared has_many: `field`, `fill_fields`, `has_field_error?`, `has_no_field_error?`, `has_exact_field_errors?` and `has_no_exact_field_errors?`.
+
+Filters and fields take the declared name, not the attribute: `form.field(:customer_name)` and `have_field_error(:customer_name)`.
+
+Names compare as everywhere else: `:external_id`, `"external_id"` and `"External ID"` are the same name.
+
+## Matchers shared with capybara_active_admin
+
+[capybara_active_admin](https://github.com/activeadmin-plugins/capybara_active_admin) defines RSpec matchers for Capybara's `page`, such as `have_page_title`, `have_table` and `have_status_tag`. In an example group that includes them, they replace the predicate matchers of the page objects: `expect(index).to have_page_title(text: "Customers")` calls the matcher of that gem.
+
+`ActiveAdminPageObjects::RSpec::Matchers` defines the same names for both. Include it after capybara_active_admin's matchers, so it takes precedence:
+
+```ruby
+require "capybara/active_admin/rspec" # includes that gem's matchers
+require "active_admin_page_objects/rspec"
+
+RSpec.configure do |config|
+  config.include ActiveAdminPageObjects::RSpec::Matchers
+end
+```
+
+- On a SitePrism page or section that has the predicate, such as `has_page_title?`, the matcher calls it, like RSpec's own `have_` matchers. Negated, it calls `has_no_page_title?` when the object has it.
+- On anything else, such as Capybara's `page`, it is the matcher of the module included before.
+
+It covers the matchers of capybara_active_admin 1.0.0: `have_action_item`, `have_action_item_link`, `have_attribute_row`, `have_attributes_table`, `have_batch_action`, `have_fields_date_range`, `have_flash_message`, `have_footer`, `have_form_error`, `have_has_many_fields_for`, `have_no_form_errors`, `have_page_title`, `have_panel`, `have_semantic_error`, `have_semantic_errors`, `have_sidebar`, `have_status_tag`, `have_submit_input`, `have_table`, `have_table_cell`, `have_table_header`, `have_table_row`, `have_table_scope` and `have_table_scopes`.
 
 ## JavaScript driver
 
@@ -533,11 +664,11 @@ ActiveAdminPageObjects::Layout.add_section(:audit_panel, AuditPanel)
 ActiveAdminPageObjects::Layout.add_element(:banner, ".banner")
 ```
 
-Register a section for a custom filter input class with `ActiveAdminPageObjects::Filters.register_type("my_input", MyFilter)`, and for a custom form input class with `ActiveAdminPageObjects::Form.register_type("my_input", MyInput)`. `MyInput` subclasses `ActiveAdminPageObjects::Form::Input`.
+Register a section for a custom filter input class with `ActiveAdminPageObjects::Filters.register_type("my_input", MyFilter)`, and for a custom form input class with `ActiveAdminPageObjects::Form.register_type("my_input", MyField)`. `MyField` subclasses `ActiveAdminPageObjects::Form::Field`.
 
 ### Select widgets
 
-`ActiveAdminPageObjects::SelectControl` drives a native `<select>` for `SelectFilter`, `Form` and `Form::Input`. A gem with a JavaScript select widget prepends a module into it and overrides the private methods `choose_option(scope, label)`, `option_offered?(scope, label)`, `control_disabled?(scope)` and `chosen_item?(scope, label)`:
+`ActiveAdminPageObjects::SelectControl` drives a native `<select>` for `SelectFilter` and `Form::Field`. A gem with a JavaScript select widget prepends a module into it and overrides the private methods `choose_option(scope, label)`, `option_offered?(scope, label)`, `control_disabled?(scope)` and `chosen_item?(scope, label)`:
 
 ```ruby
 module MyWidget

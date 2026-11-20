@@ -25,9 +25,51 @@ RSpec.describe ActiveAdminPageObjects::Table do
       expect(table).to have_no_header_names("Id", "Name")
     end
 
-    it "has the declared column labels" do
-      expect(table).to have_declared_columns
-      expect(table.declared_label_mismatches).to eq({})
+    it "has the declared column labels and no other column" do
+      expect(table).to have_declared_columns(except: :notes)
+      expect(table).to have_exact_columns(except: :notes)
+      expect(table).to have_no_exact_columns
+      expect(table.declared_label_mismatches).to eq("notes" => nil)
+      expect(table.exact_mismatches).to eq(missing: ["notes"], unexpected: [], labels: {})
+    end
+
+    it "has an optional column when the page shows it" do
+      index.load(query: { with_notes: 1 })
+      expect(table).to have_exact_columns
+      expect(table).to have_exact_columns(except: :notes)
+      expect(table.exact_mismatches).to eq(missing: [], unexpected: [], labels: {})
+    end
+
+    it "reports the columns that are missing, not declared or labelled otherwise" do
+      partial = declared_table do
+        column :id, "ID"
+        column :name, "Name"
+        column :secret, "Secret"
+      end
+      expect(partial).to have_no_exact_columns
+      expect(partial.has_exact_columns?(wait: 0)).to be(false)
+      expect(partial.exact_mismatches).to eq(
+        missing: ["secret"],
+        unexpected: %w[selectable email external_id status balance active category created actions],
+        labels: { "id" => "Id" }
+      )
+      expect(partial).to have_exact_columns(only: :name)
+      expect(partial).to have_no_exact_columns(only: %i[name secret])
+      expect(partial.exact_mismatches(except: %i[id secret])).to include(missing: [], labels: {})
+      expect(partial.exact_mismatches(except: :name)[:unexpected]).not_to include("name")
+      expect { partial.has_exact_columns?(only: :email) }.to raise_error(ArgumentError, /:email is not declared/)
+      expect { partial.has_declared_columns?(except: :email) }.to raise_error(ArgumentError, /:email is not declared/)
+    end
+
+    it "matches the status tag of a cell" do
+      row = table.row(customers.first.id)
+      expect(row).to have_status_tag(:status, "Active")
+      expect(row).to have_status_tag(:status, "active", type: :active)
+      expect(row).to have_no_status_tag(:status, "Pending")
+      expect(row).to have_no_status_tag(:status, "Active", type: "pending")
+      expect(row).to have_no_status_tag(:name, "Active")
+      expect(row.has_status_tag?(:status, "Pending", wait: 0)).to be(false)
+      expect(row.has_no_status_tag?(:status, "Active", wait: 0)).to be(false)
     end
 
     it "compares a declared label exactly" do
@@ -47,6 +89,7 @@ RSpec.describe ActiveAdminPageObjects::Table do
       expect(lenient.rows.first).to have_no_cell(:secret)
       Capybara.using_wait_time(0) { expect(lenient.has_sortable_column?(:secret)).to be(false) }
       expect { lenient.has_declared_columns? }.to raise_error(ArgumentError, /declares no labels/)
+      expect { lenient.has_exact_columns? }.to raise_error(ArgumentError, /declares no labels/)
       expect { lenient.declared_label_mismatches }.to raise_error(ArgumentError, /declares no labels/)
     end
 
@@ -143,6 +186,12 @@ RSpec.describe ActiveAdminPageObjects::Table do
       expect { row.has_cell?(:secret) }.to raise_error(ArgumentError, message)
       expect { row.has_no_cell?(:secret) }.to raise_error(ArgumentError, message)
       expect { row.status_tag("Secret") }.to raise_error(ArgumentError, /"Secret" is not declared/)
+      expect { row.has_status_tag?(:secret, "Active") }.to raise_error(ArgumentError, message)
+      expect { row.has_no_status_tag?(:secret, "Active") }.to raise_error(ArgumentError, message)
+    end
+
+    it "requires a label" do
+      expect { Class.new(described_class) { column :actions } }.to raise_error(ArgumentError)
     end
 
     it "takes a declared key as a symbol, a string or a label" do
@@ -157,7 +206,7 @@ RSpec.describe ActiveAdminPageObjects::Table do
     it "inherits declarations and leaves the superclass unchanged" do
       subclass = Class.new(strict_class) { column :email, "Email" }
       expect(subclass.declarations.keys).to eq(%w[id name email])
-      expect(subclass.declarations["email"]).to eq(label: "Email", type: nil)
+      expect(subclass.declarations["email"]).to eq(label: "Email")
       expect(strict_class.declarations.keys).to eq(%w[id name])
       expect(described_class.declarations).to be_empty
     end

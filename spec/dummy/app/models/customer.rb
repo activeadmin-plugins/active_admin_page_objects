@@ -15,7 +15,7 @@ class Customer < ActiveRecord::Base
 
   validates :name, presence: true
   validates :email, format: { with: /\A[^@\s]+@[^@\s]+\z/ }
-  validate :name_is_not_reserved
+  validate :base_rules
 
   def self.ransackable_attributes(_auth = nil) = %w[id name email external_id status balance active category_id created_at]
   def self.ransackable_associations(_auth = nil) = %w[category]
@@ -27,7 +27,8 @@ class Customer < ActiveRecord::Base
 
   private
 
-  def name_is_not_reserved
+  def base_rules
     errors.add(:base, "Name is reserved") if name == "Reserved"
+    errors.add(:base, "Balance is negative") if balance.to_d.negative?
   end
 end

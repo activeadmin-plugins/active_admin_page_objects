@@ -59,6 +59,7 @@ module ActiveAdminPageObjects
 
       attributes_table: ".attributes_table",
       attributes_table_row: "tr.row-%s",
+      attributes_table_rows: "tr[class*='row-']",
 
       status_tag: ".status_tag",
 
@@ -75,6 +76,7 @@ module ActiveAdminPageObjects
 
       filters: "#filters_sidebar_section form.filter_form",
       filter: "#q_%s_input",
+      filter_wrappers: ".filter_form_field",
       filter_predicate: "select",
       filter_value: "input",
       filter_range_from: 'input[name*="_gteq"]',
@@ -106,13 +108,17 @@ module ActiveAdminPageObjects
       modal_dialog_cancel: ".ui-dialog-buttonset button:nth-child(2)",
 
       form: "form.formtastic:not(.active_admin_comment)",
+      # Hidden inputs and the delete checkbox of a has_many fieldset are not fields.
+      form_input_wrapper: "li.input:not(.hidden):not(.has_many_delete)",
       form_input: "li#%s_%s_input",
       form_choice: "li.choice label",
       form_inline_error: "p.inline-errors",
       form_semantic_error: "ul.errors > li",
       form_submit: "fieldset.actions input[type=submit], fieldset.actions button[type=submit]",
 
+      has_many_container: ".has_many_container",
       has_many: ".has_many_container.%s",
+      has_many_heading: "h3",
       has_many_fieldset: "fieldset.has_many_fields",
       has_many_add: "a.has_many_add",
       has_many_remove: "a.has_many_remove",

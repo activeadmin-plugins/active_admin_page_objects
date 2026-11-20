@@ -12,15 +12,10 @@ RSpec.describe ActiveAdminPageObjects::Form do
   end
 
   shared_examples "resource form" do
-    it "fills every input type and submits" do
+    it "fills every field type and submits" do
       form_page.load(action: "new")
-      form.fill(:name, with: "Acme")
-      form.fill(:email, with: "acme@example.com")
-      form.choose(:status, "pending")
-      form.fill(:category, with: "Retail")
-      form.fill(:balance, with: 12.5)
-      form.fill(:active, with: false)
-      form.fill(:notes, with: "Big account")
+      form.fill_fields(customer_name: "Acme", email: "acme@example.com", status: "pending", category: "Retail",
+                       balance: 12.5, active: false, notes: "Big account")
       form.submit
 
       expect(form_page.flashes).to have_flash(:notice, "Customer was successfully created.")
@@ -32,153 +27,307 @@ RSpec.describe ActiveAdminPageObjects::Form do
 
     it "shows inline and base errors" do
       form_page.load(action: "new")
-      form.fill(:name, with: "Reserved")
-      form.fill(:email, with: "not-an-email")
+      form.fill_fields(customer_name: "Reserved", email: "not-an-email")
       form.submit
 
-      expect(form).to have_input_error(:email, "is invalid")
-      expect(form).to have_input_error(:email)
-      expect(form).to have_no_input_error(:name)
-      expect(form).to have_no_input_error(:email, "can't be blank")
+      expect(form).to have_field_error(:email, "is invalid")
+      expect(form).to have_field_error(:email)
+      expect(form).to have_no_field_error(:customer_name)
+      expect(form).to have_no_field_error(:email, "can't be blank")
+      expect(form).to have_field_errors
       expect(form).to have_semantic_errors("Name is reserved")
       expect(form).to have_semantic_errors
       expect(form).to have_no_semantic_errors("Email is taken")
       expect(form.semantic_errors).to eq(["Name is reserved"])
-      expect(form.input(:email).errors).to eq(["is invalid"])
+      expect(form.field(:email).errors).to eq(["is invalid"])
+    end
+
+    it "compares the base errors exactly" do
+      form_page.load(action: "new")
+      form.fill_fields(customer_name: "Reserved", email: "acme@example.com", balance: -1)
+      form.submit
+
+      expect(form).to have_exact_semantic_errors("Balance is negative", "Name is reserved")
+      expect(form).to have_exact_semantic_errors("Name is reserved", "Balance is negative", strict_order: true)
+      expect(form).to have_no_exact_semantic_errors("Balance is negative", "Name is reserved", strict_order: true)
+      expect(form).to have_no_exact_semantic_errors("Name is reserved")
+      expect(form).to have_no_exact_semantic_errors("Name is reserved", "Balance is negative", "Email is taken")
+      expect(form).to have_no_exact_semantic_errors("name is reserved", "Balance is negative")
+      expect(form).to have_no_exact_semantic_errors
+      expect(form.has_exact_semantic_errors?("Name is reserved", wait: 0)).to be(false)
+      expect(form.has_no_exact_semantic_errors?("Name is reserved", "Balance is negative", wait: 0)).to be(false)
+      expect(form).to have_no_field_errors
+      expect(form).to have_exact_field_errors
+    end
+
+    it "compares the inline errors exactly" do
+      form_page.load(action: "new")
+      form.fill_fields(customer_name: "", email: "not-an-email")
+      form.submit
+
+      expect(form).to have_exact_field_errors(customer_name: "can't be blank", email: ["is invalid"])
+      expect(form).to have_exact_field_errors(customer_name: "can't be blank", email: "is invalid", notes: [])
+      expect(form).to have_no_exact_field_errors(email: "is invalid")
+      expect(form).to have_no_exact_field_errors(customer_name: "can't be blank", email: "is")
+      expect(form).to have_no_exact_field_errors(customer_name: "can't be blank", email: ["is invalid", "is taken"])
+      expect(form).to have_no_exact_field_errors
+      expect(form).to have_exact_semantic_errors
+      Capybara.using_wait_time(0) do
+        expect(form.has_exact_field_errors?(email: "is invalid")).to be(false)
+        expect(form.has_no_exact_field_errors?(customer_name: "can't be blank", email: "is invalid")).to be(false)
+        expect(form.has_no_field_errors?).to be(false)
+      end
+    end
+
+    it "names the exact inline errors by attribute without declarations" do
+      form_page.load(action: "new")
+      lenient = described_class.new(form_page, form.root_element)
+      lenient.fill_fields(email: "not-an-email")
+      lenient.submit
+
+      lenient = described_class.new(form_page, form.root_element)
+      expect(lenient).to have_exact_field_errors(name: "can't be blank", email: "is invalid")
+      expect(lenient).to have_no_exact_field_errors(name: "can't be blank")
     end
 
     it "edits an existing record" do
       customer = create_customer(name: "Old")
       form_page.load(id: customer.id, action: "edit")
       expect(form).to have_no_semantic_errors
-      expect(form.input(:name)).to have_field(with: "Old")
-      form.fill(:name, with: "New")
+      expect(form).to have_no_field_errors
+      expect(form.customer_name).to have_field(with: "Old")
+      form.customer_name.fill("New")
       form.submit
       expect(customer.reload.name).to eq("New")
     end
 
-    it "has the declared field labels" do
+    it "has the declared field labels and no other field" do
       form_page.load(action: "new")
       expect(form).to have_declared_fields
+      expect(form).to have_exact_fields
       expect(form.declared_label_mismatches).to eq({})
+      expect(form.exact_mismatches).to eq(missing: [], unexpected: [], labels: {})
     end
 
     it "compares a declared label exactly" do
       form_page.load(action: "new")
       wrong_case = declared_form do
-        field :name, "Name*"
-        field :external_id, "External id"
-        field :active, "active"
-        field :tier, "Bronze"
-        field :channels, "Channels"
-        field :secret, "Secret"
+        field :customer_name, "Name*", ActiveAdminPageObjects::Form::StringField, attribute: :name
+        field :external_id, "External id", ActiveAdminPageObjects::Form::StringField
+        field :active, "active", ActiveAdminPageObjects::Form::BooleanField
+        field :tier, "Bronze", ActiveAdminPageObjects::Form::RadioField
+        field :channels, "Channels", ActiveAdminPageObjects::Form::CheckBoxesField
+        field :secret, "Secret", ActiveAdminPageObjects::Form::StringField
       end
       expect(wrong_case).to have_no_declared_fields
       expect(wrong_case.has_declared_fields?(wait: 0)).to be(false)
-      expect(wrong_case.declared_label_mismatches)
-        .to eq("name" => "Name", "external_id" => "External ID", "active" => "Active", "tier" => "Tier", "secret" => nil)
-      expect(declared_form { field :external_id, "External ID" }).to have_declared_fields
+      expect(wrong_case.declared_label_mismatches).to eq(
+        "customer_name" => "Name", "external_id" => "External ID", "active" => "Active", "tier" => "Tier", "secret" => nil
+      )
+      expect(wrong_case).to have_declared_fields(only: :channels)
+      expect(wrong_case).to have_no_declared_fields(only: %i[channels tier])
+      expect(wrong_case).to have_declared_fields(except: %i[customer_name external_id active tier secret])
+      external_id = declared_form { field :external_id, "External ID", ActiveAdminPageObjects::Form::StringField }
+      expect(external_id).to have_declared_fields
     end
 
-    it "raises when a field is declared with another class" do
+    it "reports the fields that are missing, not declared or labelled otherwise" do
+      form_page.load(action: "new")
+      partial = declared_form do
+        field :email, "E-mail", ActiveAdminPageObjects::Form::StringField
+        field :status, "Status", ActiveAdminPageObjects::Form::SelectField
+        field :secret, "Secret", ActiveAdminPageObjects::Form::StringField
+      end
+      expect(partial).to have_no_exact_fields
+      expect(partial.has_exact_fields?(wait: 0)).to be(false)
+      expect(partial.exact_mismatches).to eq(
+        missing: ["secret"],
+        unexpected: %w[name external_id category balance active notes website phone password tier channels signed_on orders],
+        labels: { "email" => "Email" }
+      )
+    end
+
+    it "narrows the exact fields with only and except" do
+      form_page.load(action: "new")
+      partial = declared_form do
+        field :email, "Email", ActiveAdminPageObjects::Form::StringField
+        field :status, "Status", ActiveAdminPageObjects::Form::SelectField
+        field :secret, "Secret", ActiveAdminPageObjects::Form::StringField
+      end
+      expect(partial).to have_exact_fields(only: %i[email status])
+      expect(partial).to have_no_exact_fields(only: %i[email secret])
+      expect(partial.exact_mismatches(only: :secret)).to eq(missing: ["secret"], unexpected: [], labels: {})
+      expect(partial.exact_mismatches(except: :secret)[:missing]).to eq([])
+      expect(partial.exact_mismatches(except: :email)).to include(missing: ["secret"], labels: {})
+      expect(partial.exact_mismatches(except: :email)[:unexpected]).not_to include("email")
+      expect(form).to have_exact_fields(except: %i[notes orders])
+      expect { form.has_exact_fields?(only: :secret) }.to raise_error(ArgumentError, /:secret is not declared/)
+      expect { form.has_declared_fields?(except: [:secret]) }.to raise_error(ArgumentError, /:secret is not declared/)
+      expect { form.exact_mismatches(except: :secret) }.to raise_error(ArgumentError, /:secret is not declared/)
+    end
+
+    it "builds the declared class" do
+      form_page.load(action: "new")
+      select_class = Class.new(ActiveAdminPageObjects::Form::SelectField)
+      typed = declared_form do
+        field :status, "Status", select_class
+        field :website, "Website", ActiveAdminPageObjects::Form::DatePickerField
+      end
+      expect(typed.field(:status)).to be_an_instance_of(select_class)
+      expect(typed.status).to be_an_instance_of(select_class)
+      expect(typed.website).to be_an_instance_of(ActiveAdminPageObjects::Form::DatePickerField)
+      expect(form.signed_on).to be_an_instance_of(ActiveAdminPageObjects::Form::DatePickerField)
+    end
+
+    it "raises when the page has a field of another class than the declared one" do
       form_page.load(action: "new")
       mistyped = declared_form do
-        field :status, "Status", ActiveAdminPageObjects::Form::RadioInput
-        field :signed_on, "Signed on", ActiveAdminPageObjects::Form::StringInput
+        field :status, "Status", ActiveAdminPageObjects::Form::RadioField
+        field :signed_on, "Signed on", ActiveAdminPageObjects::Form::StringField
+        field :email, "Email", ActiveAdminPageObjects::Form::Field
       end
-      expect { mistyped.input(:status) }.to raise_error(
+      expect { mistyped.field(:status) }.to raise_error(
         Capybara::ExpectationNotMet,
-        ":status is declared as ActiveAdminPageObjects::Form::RadioInput, " \
-        "but the page has ActiveAdminPageObjects::Form::SelectInput"
+        ":status is declared as ActiveAdminPageObjects::Form::RadioField, " \
+        "but the page has ActiveAdminPageObjects::Form::SelectField"
       )
-      expect { mistyped.choose(:status, "pending") }.to raise_error(Capybara::ExpectationNotMet, /RadioInput/)
-      expect(mistyped.input(:signed_on)).to be_a(ActiveAdminPageObjects::Form::DatePickerInput)
+      expect { mistyped.status }.to raise_error(Capybara::ExpectationNotMet, /RadioField/)
+      expect { mistyped.fill_fields(status: "pending") }.to raise_error(Capybara::ExpectationNotMet, /RadioField/)
+      expect { mistyped.signed_on }.to raise_error(Capybara::ExpectationNotMet, /StringField, but the page has .*DatePickerField/)
+      expect { mistyped.email }.to raise_error(Capybara::ExpectationNotMet, /Form::Field, but the page has .*StringField/)
       expect(mistyped).to have_declared_fields
+    end
+
+    it "finds a field by its attribute under another name" do
+      form_page.load(action: "new")
+      renamed = declared_form do
+        field :reference_code, "External ID", ActiveAdminPageObjects::Form::StringField, attribute: :external_id
+      end
+      renamed.reference_code.fill("X-1")
+      expect(renamed.field(:reference_code).value).to eq("X-1")
+      expect(renamed).to have_declared_fields
+      expect(renamed).to have_no_field_error(:reference_code)
+      expect { renamed.field(:external_id) }.to raise_error(ArgumentError, /:external_id is not declared/)
+      expect(renamed.exact_mismatches[:unexpected]).not_to include("external_id")
     end
 
     it "takes any key without declarations" do
       form_page.load(action: "new")
       lenient = described_class.new(form_page, form.root_element)
-      expect(lenient).to have_no_input_error(:secret)
+      expect(lenient).to have_no_field_error(:secret)
+      expect(lenient.field(:name)).to be_an_instance_of(ActiveAdminPageObjects::Form::StringField)
+      expect(lenient.has_many(:orders)).to be_an_instance_of(ActiveAdminPageObjects::HasMany)
       expect { lenient.has_declared_fields? }.to raise_error(ArgumentError, /declares no labels/)
+      expect { lenient.has_exact_fields? }.to raise_error(ArgumentError, /declares no labels/)
+      expect { lenient.exact_mismatches }.to raise_error(ArgumentError, /declares no labels/)
     end
 
-    describe "typed inputs" do
+    describe "typed fields" do
       before { form_page.load(action: "new") }
 
-      it "returns a StringInput for the text inputs" do
-        %i[name email external_id balance notes website phone password].each do |key|
-          expect(form.input(key)).to be_an_instance_of(ActiveAdminPageObjects::Form::StringInput)
+      it "returns a StringField for the text inputs" do
+        %i[customer_name email external_id balance notes website phone password].each do |name|
+          expect(form.field(name)).to be_an_instance_of(ActiveAdminPageObjects::Form::StringField)
         end
-        name = form.input(:name)
-        name.fill("Acme")
-        expect(name.value).to eq("Acme")
-        form.fill(:notes, with: "Big account")
-        expect(form.input(:notes).value).to eq("Big account")
+        form.customer_name.fill("Acme")
+        expect(form.customer_name.value).to eq("Acme")
+        form.fill_fields(notes: "Big account")
+        expect(form.notes.value).to eq("Big account")
       end
 
-      it "returns a SelectInput for a select" do
-        status = form.input(:status)
-        expect(status).to be_an_instance_of(ActiveAdminPageObjects::Form::SelectInput)
+      it "returns a SelectField for a select" do
+        status = form.status
+        expect(status).to be_an_instance_of(ActiveAdminPageObjects::Form::SelectField)
         expect(status.options).to eq(%w[active pending closed])
         expect(status.selected).to be_nil
-        status.choose("pending")
+        status.fill("pending")
         expect(status.selected).to eq("pending")
-        status.fill("closed")
+        status.choose("closed")
         expect(status.selected).to eq("closed")
       end
 
-      it "returns a BooleanInput for a boolean" do
-        active = form.input(:active)
-        expect(active).to be_an_instance_of(ActiveAdminPageObjects::Form::BooleanInput)
+      it "returns a BooleanField for a boolean" do
+        active = form.active
+        expect(active).to be_an_instance_of(ActiveAdminPageObjects::Form::BooleanField)
         expect(active).to be_checked
         active.fill(false)
         expect(active).not_to be_checked
+        active.fill(true)
+        expect(active).to be_checked
       end
 
-      it "returns a RadioInput for a radio" do
-        tier = form.input(:tier)
-        expect(tier).to be_an_instance_of(ActiveAdminPageObjects::Form::RadioInput)
+      it "returns a RadioField for a radio" do
+        tier = form.tier
+        expect(tier).to be_an_instance_of(ActiveAdminPageObjects::Form::RadioField)
         expect(tier.options).to eq(%w[Bronze Silver Gold])
         expect(tier.selected).to be_nil
-        tier.choose("Gold")
+        tier.fill("Gold")
         expect(tier.selected).to eq("Gold")
-        form.choose(:tier, "Silver")
+        tier.choose("Silver")
         expect(tier.selected).to eq("Silver")
       end
 
-      it "returns a CheckBoxesInput for check_boxes" do
-        channels = form.input(:channels)
-        expect(channels).to be_an_instance_of(ActiveAdminPageObjects::Form::CheckBoxesInput)
+      it "returns a CheckBoxesField for check_boxes" do
+        channels = form.channels
+        expect(channels).to be_an_instance_of(ActiveAdminPageObjects::Form::CheckBoxesField)
         expect(channels.checked).to eq([])
         channels.check("Email", "Post")
         expect(channels.checked).to eq(%w[Email Post])
         channels.uncheck("Email")
         expect(channels.checked).to eq(["Post"])
+        channels.fill(%w[Email Phone])
+        expect(channels.checked).to eq(%w[Email Phone])
+        channels.fill([])
+        expect(channels.checked).to eq([])
       end
 
-      it "returns a DatePickerInput for a datepicker" do
-        signed_on = form.input(:signed_on)
-        expect(signed_on).to be_an_instance_of(ActiveAdminPageObjects::Form::DatePickerInput)
+      it "returns a DatePickerField for a datepicker" do
+        signed_on = form.signed_on
+        expect(signed_on).to be_an_instance_of(ActiveAdminPageObjects::Form::DatePickerField)
         signed_on.fill("2026-01-31")
         expect(signed_on.value).to eq("2026-01-31")
-        form.fill(:signed_on, with: Date.new(2026, 2, 28))
+        form.fill_fields(signed_on: Date.new(2026, 2, 28))
         expect(signed_on.value).to eq("2026-02-28")
       end
 
-      it "saves what the typed inputs set" do
-        form.fill(:name, with: "Acme")
-        form.fill(:email, with: "acme@example.com")
-        form.fill(:website, with: "https://acme.example.com")
-        form.fill(:phone, with: "+1 555 0100")
-        form.choose(:tier, "Gold")
-        form.input(:channels).check("Email", "Post")
-        form.fill(:signed_on, with: "2026-01-31")
+      it "saves what the typed fields set" do
+        form.fill_fields(customer_name: "Acme", email: "acme@example.com", website: "https://acme.example.com",
+                         phone: "+1 555 0100", tier: "Gold", channels: %w[Email Post], signed_on: "2026-01-31")
         form.submit
 
         expect(form_page.flashes).to have_flash(:notice, "Customer was successfully created.")
         expect(Customer.last).to have_attributes(website: "https://acme.example.com", phone: "+1 555 0100", tier: "Gold",
                                                  channels: %w[Email Post], signed_on: Date.new(2026, 1, 31))
+      end
+    end
+
+    describe "declared has_many blocks" do
+      before { form_page.load(action: "new") }
+
+      it "returns the has_many by its accessor and by its name" do
+        expect(form.orders.class).to be < ActiveAdminPageObjects::HasMany
+        expect(form.has_many(:orders)).to be_an_instance_of(form.orders.class)
+        expect(form.orders.heading).to eq("Orders")
+        expect { form.has_many(:tags) }.to raise_error(ArgumentError, /:tags is not declared; declared keys: orders/)
+        expect { form.field(:orders) }.to raise_error(ArgumentError, /:orders is declared as a has_many, not as a field/)
+        expect { form.has_field_error?(:orders) }.to raise_error(ArgumentError, /has_many/)
+      end
+
+      it "compares the heading with the label matchers" do
+        renamed = declared_form { has_many :purchases, "Order list", attribute: :orders }
+        expect(renamed).to have_no_declared_fields
+        expect(renamed.declared_label_mismatches).to eq("purchases" => "Orders")
+        expect(renamed.exact_mismatches[:unexpected]).not_to include("orders")
+        expect(renamed.purchases.heading).to eq("Orders")
+        expect(declared_form { has_many :orders, nil }.declared_label_mismatches).to eq("orders" => "Orders")
+        expect(declared_form { has_many :tags, "Tags" }.exact_mismatches).to include(missing: ["tags"])
+        expect(declared_form { has_many :tags, nil }.declared_label_mismatches).to eq("tags" => nil)
+      end
+
+      it "takes an undeclared has_many when the form declares none" do
+        fields_only = declared_form { field :email, "Email", ActiveAdminPageObjects::Form::StringField }
+        expect(fields_only.has_many(:orders)).to be_an_instance_of(ActiveAdminPageObjects::HasMany)
+        expect(fields_only.exact_mismatches[:unexpected]).to include("orders")
       end
     end
   end
@@ -189,49 +338,95 @@ RSpec.describe ActiveAdminPageObjects::Form do
     it_behaves_like "resource form"
   end
 
+  it "matches a has_many without a heading when nil is declared" do
+    form_page.load(action: "new")
+    page.execute_script("document.querySelector('.has_many_container.orders > h3').remove()")
+    expect(declared_form { has_many :orders, nil }).to have_declared_fields
+    expect(declared_form { has_many :orders, "Orders" }.declared_label_mismatches).to eq("orders" => "")
+  end
+
   describe "declared fields" do
     let(:strict_class) do
       Class.new(described_class) do
-        field :name, "Name", ActiveAdminPageObjects::Form::StringInput
-        field :external_id, "External ID"
+        field :email, "Email", ActiveAdminPageObjects::Form::StringField
+        field :external_id, "External ID", ActiveAdminPageObjects::Form::StringField
       end
     end
 
-    it "rejects an undeclared key before it queries the page" do
+    it "rejects an undeclared name before it queries the page" do
       strict = strict_class.new(nil, nil)
-      message = /:email is not declared; declared keys: name, external_id/
-      expect { strict.input(:email) }.to raise_error(ArgumentError, message)
-      expect { strict.fill(:email, with: "a@example.com") }.to raise_error(ArgumentError, message)
-      expect { strict.choose(:email, "a@example.com") }.to raise_error(ArgumentError, message)
-      expect { strict.has_input_error?(:email) }.to raise_error(ArgumentError, message)
-      expect { strict.has_no_input_error?(:email) }.to raise_error(ArgumentError, message)
+      message = /:name is not declared; declared keys: email, external_id/
+      expect { strict.field(:name) }.to raise_error(ArgumentError, message)
+      expect { strict.fill_fields(name: "Acme") }.to raise_error(ArgumentError, message)
+      expect { strict.has_field_error?(:name) }.to raise_error(ArgumentError, message)
+      expect { strict.has_no_field_error?(:name) }.to raise_error(ArgumentError, message)
+      expect { strict.has_exact_field_errors?(name: "can't be blank") }.to raise_error(ArgumentError, message)
+      expect { strict.has_no_exact_field_errors?(name: "can't be blank") }.to raise_error(ArgumentError, message)
+      expect { strict.has_declared_fields?(only: :name) }.to raise_error(ArgumentError, message)
+      expect { strict.has_exact_fields?(except: :name) }.to raise_error(ArgumentError, message)
     end
 
-    it "takes a declared key as a symbol, a string or a label" do
+    it "takes a declared name as a symbol, a string or a label" do
       form_page.load(action: "new")
       strict = strict_class.new(form_page, form.root_element)
-      strict.fill(:external_id, with: "X-1")
-      expect(strict.input("external_id").value).to eq("X-1")
-      expect(strict.input("External ID").value).to eq("X-1")
+      strict.external_id.fill("X-1")
+      expect(strict.field("external_id").value).to eq("X-1")
+      expect(strict.field("External ID").value).to eq("X-1")
+    end
+
+    it "requires a label and a section class" do
+      expect { Class.new(described_class) { field :email } }.to raise_error(ArgumentError)
+      expect { Class.new(described_class) { field :email, "Email" } }.to raise_error(ArgumentError)
+      expect { Class.new(described_class) { field :email, "Email", nil } }
+        .to raise_error(ArgumentError, "`field :email` needs a section class, got nil")
+    end
+
+    it "raises when the name is a method of the section" do
+      expect { Class.new(described_class) { field :title, "Title", ActiveAdminPageObjects::Form::StringField } }.to raise_error(
+        ArgumentError, "`field :title` clashes with SitePrism::Section#title; rename it and pass attribute: :title"
+      )
+      expect { Class.new(described_class) { field :name, "Name", ActiveAdminPageObjects::Form::StringField } }
+        .to raise_error(ArgumentError, /clashes with SitePrism::Section#name/)
+      expect { Class.new(described_class) { field :submit, "Submit", ActiveAdminPageObjects::Form::StringField } }
+        .to raise_error(ArgumentError, /clashes with ActiveAdminPageObjects::Form#submit/)
+      expect { Class.new(described_class) { field :format, "Format", ActiveAdminPageObjects::Form::StringField } }
+        .to raise_error(ArgumentError, /clashes with Kernel#format/)
+      expect { Class.new(described_class) { has_many :all, "All" } }.to raise_error(ArgumentError, /`has_many :all` clashes with/)
+      expect do
+        Class.new(described_class) do
+          def shipping = :taken
+          field :shipping, "Shipping", ActiveAdminPageObjects::Form::StringField, attribute: :shipping_method
+        end
+      end.to raise_error(ArgumentError, /#shipping; rename it and pass attribute: :shipping_method/)
+    end
+
+    it "lets a subclass declare an inherited name again" do
+      select_class = Class.new(ActiveAdminPageObjects::Form::SelectField)
+      subclass = Class.new(strict_class) { field :email, "E-mail", select_class }
+      expect(subclass.declarations["email"]).to eq(label: "E-mail", type: select_class, attribute: "email", kind: :field)
+      expect(strict_class.declarations["email"][:label]).to eq("Email")
     end
 
     it "inherits declarations and leaves the superclass unchanged" do
-      subclass = Class.new(strict_class) { field :email, "Email" }
-      expect(subclass.declarations.keys).to eq(%w[name external_id email])
-      expect(subclass.declarations["name"]).to eq(label: "Name", type: ActiveAdminPageObjects::Form::StringInput)
-      expect(strict_class.declarations.keys).to eq(%w[name external_id])
+      subclass = Class.new(strict_class) { field :status, "Status", ActiveAdminPageObjects::Form::SelectField }
+      expect(subclass.declarations.keys).to eq(%w[email external_id status])
+      expect(subclass.declarations["email"])
+        .to eq(label: "Email", type: ActiveAdminPageObjects::Form::StringField, attribute: "email", kind: :field)
+      expect(subclass.new(nil, nil)).to respond_to(:email, :external_id, :status)
+      expect(strict_class.declarations.keys).to eq(%w[email external_id])
+      expect(strict_class.new(nil, nil)).not_to respond_to(:status)
       expect(described_class.declarations).to be_empty
     end
   end
 
   describe ".register_type" do
     it "registers a section for another input class" do
-      custom = Class.new(described_class::Input)
+      custom = Class.new(described_class::Field)
       described_class.register_type("datepicker", custom)
       form_page.load(action: "new")
-      expect(described_class.new(form_page, form.root_element).input(:signed_on)).to be_a(custom)
+      expect(described_class.new(form_page, form.root_element).field(:signed_on)).to be_a(custom)
     ensure
-      described_class.register_type("datepicker", described_class::DatePickerInput)
+      described_class.register_type("datepicker", described_class::DatePickerField)
     end
   end
 end

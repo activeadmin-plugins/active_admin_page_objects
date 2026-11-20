@@ -25,6 +25,10 @@ module ActiveAdminPageObjects
       ActiveAdminPageObjects.same_text?(actual, expected)
     end
 
+    def squish(text)
+      ActiveAdminPageObjects.squish(text)
+    end
+
     # Retries the block until it is truthy or Capybara's wait time runs out.
     def eventually(wait: Capybara.default_max_wait_time)
       root_element.synchronize(wait) do

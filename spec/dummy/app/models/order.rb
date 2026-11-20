@@ -5,6 +5,8 @@ class Order < ActiveRecord::Base
 
   belongs_to :customer
 
+  validates :quantity, numericality: { greater_than: 0, allow_nil: true }
+
   def self.ransackable_attributes(_auth = nil) = %w[reference state quantity customer_id]
   def self.ransackable_associations(_auth = nil) = %w[customer]
 end

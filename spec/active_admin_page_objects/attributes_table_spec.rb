@@ -24,18 +24,43 @@ RSpec.describe ActiveAdminPageObjects::AttributesTable do
       expect(show.attributes_table.value(:external_id)).to eq("X-1")
     end
 
-    it "has the declared row labels" do
+    it "has the declared row labels and no other row" do
       expect(show.attributes_table).to have_declared_rows
+      expect(show.attributes_table).to have_exact_rows
       expect(show.attributes_table.declared_label_mismatches).to eq({})
+      expect(show.attributes_table.exact_mismatches).to eq(missing: [], unexpected: [], labels: {})
     end
 
-    it "checks the absence of a row declared without a label" do
-      known = declared_table do
+    it "reports the rows that are missing, not declared or labelled otherwise" do
+      partial = declared_table do
         row :name, "Name"
-        row :notes
+        row :external_id, "External id"
+        row :notes, "Notes"
       end
-      expect(known).to have_no_row(:notes)
-      expect(known).to have_declared_rows
+      expect(partial).to have_no_exact_rows
+      expect(partial.has_exact_rows?(wait: 0)).to be(false)
+      expect(partial.exact_mismatches).to eq(
+        missing: ["notes"], unexpected: %w[email status balance category signed_up], labels: { "external_id" => "External ID" }
+      )
+      expect(partial).to have_exact_rows(only: :name)
+      expect(partial).to have_no_exact_rows(only: %i[name notes])
+      expect(partial).to have_declared_rows(except: %i[external_id notes])
+      expect(partial.exact_mismatches(except: :notes)).to include(missing: [], labels: { "external_id" => "External ID" })
+      expect(partial.exact_mismatches(except: :name)[:unexpected]).not_to include("name")
+      expect(show.attributes_table).to have_exact_rows(except: :status)
+      expect { partial.has_exact_rows?(only: :email) }.to raise_error(ArgumentError, /:email is not declared/)
+      expect { partial.has_declared_rows?(except: :email) }.to raise_error(ArgumentError, /:email is not declared/)
+    end
+
+    it "matches the status tag of a row" do
+      table = show.attributes_table
+      expect(table).to have_status_tag(:status, "Active")
+      expect(table).to have_status_tag(:status, "ACTIVE", type: "active")
+      expect(table).to have_no_status_tag(:status, "Pending")
+      expect(table).to have_no_status_tag(:status, "Active", type: "pending")
+      expect(table).to have_no_status_tag(:name, "Active")
+      expect(table.has_status_tag?(:status, "Pending", wait: 0)).to be(false)
+      expect(table.has_no_status_tag?(:status, "Active", wait: 0)).to be(false)
     end
 
     it "compares a declared label exactly" do
@@ -54,6 +79,7 @@ RSpec.describe ActiveAdminPageObjects::AttributesTable do
       lenient = described_class.new(show, show.attributes_table.root_element)
       expect(lenient).to have_no_row(:notes)
       expect { lenient.has_declared_rows? }.to raise_error(ArgumentError, /declares no labels/)
+      expect { lenient.has_exact_rows? }.to raise_error(ArgumentError, /declares no labels/)
     end
   end
 
@@ -79,6 +105,12 @@ RSpec.describe ActiveAdminPageObjects::AttributesTable do
       expect { strict.row(:notes) }.to raise_error(ArgumentError, message)
       expect { strict.value(:notes) }.to raise_error(ArgumentError, message)
       expect { strict.status_tag(:notes) }.to raise_error(ArgumentError, message)
+      expect { strict.has_status_tag?(:notes, "Active") }.to raise_error(ArgumentError, message)
+      expect { strict.has_no_status_tag?(:notes, "Active") }.to raise_error(ArgumentError, message)
+    end
+
+    it "requires a label" do
+      expect { Class.new(described_class) { row :notes } }.to raise_error(ArgumentError)
     end
 
     it "takes a declared key as a symbol, a string or a label" do
@@ -92,6 +124,8 @@ RSpec.describe ActiveAdminPageObjects::AttributesTable do
     it "inherits declarations and leaves the superclass unchanged" do
       subclass = Class.new(strict_class) { row :email, "Email" }
       expect(subclass.declarations.keys).to eq(%w[name external_id email])
+      expect(subclass.declarations["email"]).to eq(label: "Email")
+      expect(subclass.new(nil, nil)).not_to respond_to(:email)
       expect(strict_class.declarations.keys).to eq(%w[name external_id])
       expect(described_class.declarations).to be_empty
     end

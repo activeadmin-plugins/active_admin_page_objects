@@ -16,6 +16,13 @@ RSpec.describe ActiveAdminPageObjects::StatusTag do
       expect(tag).to have_label("PENDING")
       expect(tag).to have_no_label("Active", wait: 0)
     end
+
+    it "matches the label and the type at once" do
+      expect(tag.match?("PENDING")).to be(true)
+      expect(tag.match?("Pending", type: "pending")).to be(true)
+      expect(tag.match?("Pending", type: "active")).to be(false)
+      expect(tag.match?("Active", type: "pending")).to be(false)
+    end
   end
 
   context "in an index row" do

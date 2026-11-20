@@ -2,30 +2,29 @@
 
 module ActiveAdminPageObjects
   # A `has_many` block of a resource form, with the fieldsets of its nested
-  # records. Reached with `form.has_many(:orders)`.
+  # records. Reached with `form.has_many(:orders)`, or with `form.orders` when
+  # the form declares `has_many :orders, "Orders"`.
   class HasMany < Section
     selector_key :has_many
 
-    # One nested record's fieldset. Inputs are keyed by the attribute, like the form's.
+    class << self
+      # Sets the section class of the fieldsets. A has_many declared on a form
+      # sets the class built from its block.
+      attr_writer :fieldset_class
+
+      # The section class of the fieldsets.
+      # @return [Class]
+      def fieldset_class
+        @fieldset_class || (superclass.respond_to?(:fieldset_class) ? superclass.fieldset_class : Fieldset)
+      end
+    end
+
+    # One nested record's fieldset. Fields are named and typed like the
+    # form's: see Fields. A has_many block nested in the fieldset is not one
+    # of its fields.
     class Fieldset < Section
       include SelectControl
-
-      # The input wrapper for attribute +key+ of this nested record, typed like the form's.
-      # @return [Form::Input]
-      def input(key)
-        wrapper = find(:css, sel(:form_input, prefix, slug(key)))
-        Form.input_class_for(wrapper).new(self, wrapper)
-      end
-
-      # Sets the input for attribute +key+ to +with+.
-      def fill(key, with:)
-        input(key).fill(with)
-      end
-
-      # Picks +option+ in the select or radio input for attribute +key+.
-      def choose(key, option)
-        input(key).choose(option)
-      end
+      include Fields
 
       # Removes a new, unsaved fieldset, or ticks the delete checkbox of a saved one.
       # @raise [ArgumentError] when the fieldset has neither
@@ -48,7 +47,7 @@ module ActiveAdminPageObjects
 
       # Formtastic ids a field `<name with [] turned into _>`, so the prefix of
       # `customer[orders_attributes][0][reference]` is `customer_orders_attributes_0`.
-      def prefix
+      def field_prefix
         field = find("input[name*='['], select[name*='['], textarea[name*='[']", match: :first, visible: :all)
         field[:name].sub(/\[[^\]]*\]\z/, "").tr("[", "_").delete("]")
       end
@@ -57,7 +56,7 @@ module ActiveAdminPageObjects
     # The block heading.
     # @return [String]
     def heading
-      find(:css, "h3", match: :first).text.strip
+      find(:css, sel(:has_many_heading), match: :first).text.strip
     end
 
     # The number of fieldsets.
@@ -69,13 +68,13 @@ module ActiveAdminPageObjects
     # All fieldsets, in page order.
     # @return [Array<Fieldset>]
     def fieldsets
-      all(:active_admin, :has_many_fieldset, wait: false).map { |node| Fieldset.new(self, node) }
+      all(:active_admin, :has_many_fieldset, wait: false).map { |node| self.class.fieldset_class.new(self, node) }
     end
 
     # The fieldset at +index+ (0-based), waiting for it to appear.
     # @return [Fieldset]
     def fieldset(index)
-      Fieldset.new(self, all(:active_admin, :has_many_fieldset, minimum: index + 1)[index])
+      self.class.fieldset_class.new(self, all(:active_admin, :has_many_fieldset, minimum: index + 1)[index])
     end
 
     # Clicks the add link, waits for the new fieldset and returns it.
