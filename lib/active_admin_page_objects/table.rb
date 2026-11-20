@@ -90,15 +90,20 @@ module ActiveAdminPageObjects
 
     # True when the body has +count+ rows, or any row when +count+ is nil.
     def has_rows?(count: nil, **options)
-      has_css?(sel(:table_row), count: count, **options)
+      has_css?(sel(:table_row), **count_option(count), **options)
     end
 
     # Waits until the body has no rows, or not +count+ rows.
     def has_no_rows?(count: nil, **options)
-      has_no_css?(sel(:table_row), count: count, **options)
+      has_no_css?(sel(:table_row), **count_option(count), **options)
     end
 
     private
+
+    # Capybara reads `count: nil` as a count to match, so leave it out when unset.
+    def count_option(count)
+      count.nil? ? {} : { count: count }
+    end
 
     def header_names_match?(expected)
       actual = header_names
