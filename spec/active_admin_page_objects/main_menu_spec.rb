@@ -46,7 +46,51 @@ RSpec.describe ActiveAdminPageObjects::MainMenu do
 
   it_behaves_like "menu navigation"
 
+  context "when clicking" do
+    before { dashboard.load }
+
+    it "opens the collapsed parent and clicks a nested item" do
+      expect(page).to have_no_css("#main-menu li[data-item-id='catalog'] ul", visible: :visible)
+      dashboard.main_menu.click("catalog", "Orders")
+      expect(page).to have_current_path("/admin/orders")
+      expect(dashboard.main_menu.current_labels).to eq(%w[Catalog Orders])
+    end
+
+    it "does not toggle a parent that is already open" do
+      dashboard.main_menu.click("Catalog", "Orders")
+      dashboard.main_menu.click("Catalog", "Categories")
+      expect(page).to have_current_path("/admin/categories")
+    end
+
+    it "clicks a top-level item" do
+      dashboard.main_menu.click("Customers")
+      expect(page).to have_current_path("/admin/customers")
+    end
+
+    it "raises for a missing item" do
+      expect { dashboard.main_menu.click("Catalog", "Nope") }.to raise_error(Capybara::ElementNotFound)
+      expect { dashboard.main_menu.click }.to raise_error(ArgumentError)
+    end
+
+    it "raises for a hidden submenu item" do
+      hide("#main-menu li li")
+      expect { dashboard.main_menu.click("Catalog", "Orders") }.to raise_error(Capybara::ElementNotFound)
+      expect(page).to have_current_path("/admin/dashboard")
+    end
+
+    it "raises for a hidden top-level item" do
+      hide("#main-menu > ul > li")
+      expect { dashboard.main_menu.click("Customers") }.to raise_error(Capybara::ElementNotFound)
+    end
+  end
+
   context "with rack_test", driver: :rack_test do
     it_behaves_like "menu navigation"
+
+    it "clicks a nested item without toggling" do
+      dashboard.load
+      dashboard.main_menu.click("Catalog", "Orders")
+      expect(page).to have_current_path("/admin/orders")
+    end
   end
 end
