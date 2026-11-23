@@ -65,14 +65,15 @@ module ActiveAdminPageObjects
       end
     end
 
-    # The panel titled +title+ (case-insensitive). Sidebar sections and the
-    # comments panel are not panels here: use #sidebar and Comments.
+    # The panel titled +title+: a String (case-insensitive) or a Regexp.
+    # Sidebar sections and the comments panel are not panels here: use
+    # #sidebar and Comments.
     # @return [Panel]
     def panel(title)
       Panel.new(self, find(:active_admin_panel, title))
     end
 
-    # The sidebar section titled +title+ (case-insensitive).
+    # The sidebar section titled +title+: a String (case-insensitive) or a Regexp.
     # @return [Sidebar]
     def sidebar(title)
       Sidebar.new(self, find(:active_admin_sidebar, title))

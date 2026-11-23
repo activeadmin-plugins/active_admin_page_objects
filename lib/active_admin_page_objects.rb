@@ -29,8 +29,10 @@ Capybara.add_selector(:active_admin) do
 end
 
 # `find(:active_admin_panel, "Notes")` finds the panel whose title is "Notes",
-# ignoring case and surrounding whitespace. `:active_admin_sidebar` does the
-# same for sidebar sections, which `:active_admin_panel` leaves out.
+# ignoring case and surrounding whitespace. A Regexp title matches the title
+# text instead: `find(:active_admin_panel, /\ARoutes \(\d+\)\z/)`.
+# `:active_admin_sidebar` does the same for sidebar sections, which
+# `:active_admin_panel` leaves out.
 {
   active_admin_panel: %i[panel panel_title],
   active_admin_sidebar: %i[sidebar_section sidebar_title]
@@ -42,7 +44,7 @@ end
 
       # The first heading is the container's own; later ones belong to its body.
       heading = node.first(:css, ActiveAdminPageObjects.selector(title_key), visible: :all, minimum: 0, wait: false)
-      !heading.nil? && ActiveAdminPageObjects.same_text?(heading.text(:all), title)
+      !heading.nil? && ActiveAdminPageObjects.text_match?(heading.text(:all), title)
     end
   end
 end
@@ -71,6 +73,7 @@ require_relative "active_admin_page_objects/filters"
 require_relative "active_admin_page_objects/filters_footer"
 require_relative "active_admin_page_objects/scopes"
 require_relative "active_admin_page_objects/pagination"
+require_relative "active_admin_page_objects/download_links"
 require_relative "active_admin_page_objects/batch_actions"
 require_relative "active_admin_page_objects/form"
 require_relative "active_admin_page_objects/tabs"

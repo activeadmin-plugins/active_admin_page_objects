@@ -47,19 +47,26 @@ module ActiveAdminPageObjects
     end
 
     # The status tag in the value cell of row +key+.
+    # @raise [Capybara::Ambiguous] when the cell has several: see #status_tags
     # @return [StatusTag]
     def status_tag(key, visible: nil)
       visibility = visibility_of(key, visible)
       StatusTag.new(self, find(:css, cell_selector(key), **visibility).find(:active_admin, :status_tag, **visibility))
     end
 
-    # True when the status tag of row +key+ has +label+, ignoring case, and
+    # Every status tag in the value cell of row +key+, in page order.
+    # @return [Array<StatusTag>]
+    def status_tags(key, visible: nil)
+      status_tags_in(cell_selector(key), **visibility_of(key, visible))
+    end
+
+    # True when a status tag of row +key+ has +label+, ignoring case, and
     # every class of +type+.
     def has_status_tag?(key, label, type: nil, **options)
       status_tag_match?(true, cell_selector(key), label, type, **visibility_of(key), **options)
     end
 
-    # Waits until row +key+ has no such status tag.
+    # Waits until no status tag of row +key+ is such a tag.
     def has_no_status_tag?(key, label, type: nil, **options)
       status_tag_match?(false, cell_selector(key), label, type, **visibility_of(key), **options)
     end

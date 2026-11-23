@@ -25,6 +25,53 @@ RSpec.describe ActiveAdminPageObjects::StatusTag do
     end
   end
 
+  shared_examples "two tags in a cell" do
+    it "matches any status tag of the cell" do
+      expect(cells).to have_status_tag(:flags, "Draft")
+      expect(cells).to have_status_tag(:flags, "archived", type: "warning")
+      expect(cells).to have_status_tag(:flags, "Archived", type: "archived warning")
+      expect(cells).to have_no_status_tag(:flags, "Published")
+      expect(cells).to have_no_status_tag(:flags, "Draft", type: "warning")
+      Capybara.using_wait_time(0) do
+        expect(cells.has_status_tag?(:flags, "Published")).to be(false)
+        expect(cells.has_no_status_tag?(:flags, "Draft")).to be(false)
+        expect(cells.has_no_status_tag?(:flags, "Archived")).to be(false)
+      end
+    end
+
+    it "lists the status tags of the cell" do
+      expect(cells.status_tags(:flags).map(&:label)).to eq(%w[Draft Archived])
+      expect(cells.status_tags(:flags).map(&:type)).to eq(["draft", "archived warning"])
+      expect(cells.status_tags(:name)).to eq([])
+      expect { cells.status_tag(:flags) }.to raise_error(Capybara::Ambiguous)
+    end
+  end
+
+  context "with two tags in an index cell" do
+    let(:cells) do
+      document = create_document(archived: true)
+      index = Pages::DocumentIndex.new
+      index.load
+      index.table.row(document.id)
+    end
+
+    it_behaves_like "two tags in a cell"
+
+    context "with rack_test", driver: :rack_test do
+      it_behaves_like "two tags in a cell"
+    end
+  end
+
+  context "with two tags in a show row" do
+    let(:cells) do
+      show = Pages::DocumentShow.new
+      show.load(id: create_document(archived: true).id)
+      show.attributes_table
+    end
+
+    it_behaves_like "two tags in a cell"
+  end
+
   context "in an index row" do
     let(:tag) do
       index = Pages::CustomerIndex.new

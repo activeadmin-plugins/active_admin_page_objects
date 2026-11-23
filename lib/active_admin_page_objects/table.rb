@@ -23,6 +23,67 @@ module ActiveAdminPageObjects
 
     SORT_DIRECTIONS = %i[asc desc].freeze
 
+    # Sorting by the header links.
+    module Sorting
+      # Clicks the header link of column +key+. With +direction+ (`:asc` or
+      # `:desc`) it clicks until the column is sorted that way: the first click
+      # on an unsorted column sorts descending.
+      # @raise [Capybara::ElementNotFound] when the column is not sortable
+      def sort_by(key, direction = nil)
+        declaration_for(key)
+        return click_sort_link(key) if direction.nil?
+
+        direction = checked_direction(direction)
+        2.times do
+          current = sort_direction(key)
+          break if current == direction
+
+          click_sort_link(key)
+          # The click reloads the page; wait for the header to show the new order.
+          eventually { sort_direction(key) != current } ||
+            raise(Capybara::ExpectationNotMet, "column #{key.inspect} kept its sort order after a click")
+        end
+      end
+
+      # The sorted column and its direction, e.g. `["name", :desc]`, or nil
+      # when no column is sorted.
+      # @return [Array(String, Symbol), nil]
+      def sorted_by
+        th = first(:active_admin, :table_sorted_header, minimum: 0, wait: false)
+        th && [column_key(th), direction_of(th)]
+      end
+
+      # True when column +key+ has a sort link.
+      def has_sortable_column?(key)
+        has_css?(sel(:table_sortable_header, slug(key)), **visibility_of(key))
+      end
+
+      private
+
+      def sortable_header(key)
+        find(:css, sel(:table_sortable_header, slug(key)))
+      end
+
+      def click_sort_link(key)
+        sortable_header(key).find(:active_admin, :table_sort_link).click
+      end
+
+      def sort_direction(key)
+        direction_of(sortable_header(key))
+      end
+
+      def checked_direction(direction)
+        return direction.to_sym if SORT_DIRECTIONS.include?(direction.to_sym)
+
+        raise ArgumentError, "direction must be one of #{SORT_DIRECTIONS.inspect}, got #{direction.inspect}"
+      end
+
+      def direction_of(header)
+        SORT_DIRECTIONS.find { |direction| header[:class].to_s.split.include?("sorted-#{direction}") }
+      end
+    end
+    include Sorting
+
     # One `<tr>` of the table body.
     class Row < Section
       include StatusTag::Matchers
@@ -56,18 +117,25 @@ module ActiveAdminPageObjects
       end
 
       # The status tag in the cell of column +key+.
+      # @raise [Capybara::Ambiguous] when the cell has several: see #status_tags
       # @return [StatusTag]
       def status_tag(key, visible: nil)
         StatusTag.new(self, cell(key, visible: visible).find(:active_admin, :status_tag, **visibility_of(key, visible)))
       end
 
-      # True when the status tag of column +key+ has +label+, ignoring case,
+      # Every status tag in the cell of column +key+, in page order.
+      # @return [Array<StatusTag>]
+      def status_tags(key, visible: nil)
+        status_tags_in(cell_selector(key), **visibility_of(key, visible))
+      end
+
+      # True when a status tag of column +key+ has +label+, ignoring case,
       # and every class of +type+.
       def has_status_tag?(key, label, type: nil, **options)
         status_tag_match?(true, cell_selector(key), label, type, **visibility_of(key), **options)
       end
 
-      # Waits until column +key+ has no such status tag.
+      # Waits until no status tag of column +key+ is such a tag.
       def has_no_status_tag?(key, label, type: nil, **options)
         status_tag_match?(false, cell_selector(key), label, type, **visibility_of(key), **options)
       end
@@ -97,6 +165,16 @@ module ActiveAdminPageObjects
       Row.new(self, find(:css, sel(:table_row_by_id, record_id)))
     end
 
+    # True when the body has the row of the record with +record_id+.
+    def has_row?(record_id, **options)
+      has_css?(sel(:table_row_by_id, record_id), **options)
+    end
+
+    # Waits until the body has no row of the record with +record_id+.
+    def has_no_row?(record_id, **options)
+      has_no_css?(sel(:table_row_by_id, record_id), **options)
+    end
+
     # The non-empty header texts, as the driver reports them.
     # @return [Array<String>]
     def header_names
@@ -108,39 +186,6 @@ module ActiveAdminPageObjects
     # @return [Array<String>]
     def column_keys
       all(:active_admin, :table_header).filter_map { |th| column_key(th) unless th.text.strip.empty? }
-    end
-
-    # Clicks the header link of column +key+. With +direction+ (`:asc` or
-    # `:desc`) it clicks until the column is sorted that way: the first click
-    # on an unsorted column sorts descending.
-    # @raise [Capybara::ElementNotFound] when the column is not sortable
-    def sort_by(key, direction = nil)
-      declaration_for(key)
-      return click_sort_link(key) if direction.nil?
-
-      direction = checked_direction(direction)
-      2.times do
-        current = sort_direction(key)
-        break if current == direction
-
-        click_sort_link(key)
-        # The click reloads the page; wait for the header to show the new order.
-        eventually { sort_direction(key) != current } ||
-          raise(Capybara::ExpectationNotMet, "column #{key.inspect} kept its sort order after a click")
-      end
-    end
-
-    # The sorted column and its direction, e.g. `["name", :desc]`, or nil
-    # when no column is sorted.
-    # @return [Array(String, Symbol), nil]
-    def sorted_by
-      th = first(:active_admin, :table_sorted_header, minimum: 0, wait: false)
-      th && [column_key(th), direction_of(th)]
-    end
-
-    # True when column +key+ has a sort link.
-    def has_sortable_column?(key)
-      has_css?(sel(:table_sortable_header, slug(key)), **visibility_of(key))
     end
 
     # True when the headers equal +names+, in order, ignoring case.
@@ -198,28 +243,6 @@ module ActiveAdminPageObjects
     # Capybara reads `count: nil` as a count to match, so leave it out when unset.
     def count_option(count)
       count.nil? ? {} : { count: count }
-    end
-
-    def sortable_header(key)
-      find(:css, sel(:table_sortable_header, slug(key)))
-    end
-
-    def click_sort_link(key)
-      sortable_header(key).find(:active_admin, :table_sort_link).click
-    end
-
-    def sort_direction(key)
-      direction_of(sortable_header(key))
-    end
-
-    def checked_direction(direction)
-      return direction.to_sym if SORT_DIRECTIONS.include?(direction.to_sym)
-
-      raise ArgumentError, "direction must be one of #{SORT_DIRECTIONS.inspect}, got #{direction.inspect}"
-    end
-
-    def direction_of(header)
-      SORT_DIRECTIONS.find { |direction| header[:class].to_s.split.include?("sorted-#{direction}") }
     end
 
     def column_key(header)

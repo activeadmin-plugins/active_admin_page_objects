@@ -29,6 +29,30 @@ RSpec.describe ActiveAdminPageObjects::Tabs do
     expect { show.tabs.switch("Missing") }.to raise_error(Capybara::ElementNotFound, /Missing/)
   end
 
+  context "with a count in a tab label" do
+    let(:document) { Pages::DocumentShow.new }
+
+    before { document.load(id: create_document.id) }
+
+    it "finds the tab by a regexp" do
+      expect(document.tabs.labels).to eq(["Details", "Files (3)"])
+      expect(document.tabs).to have_tab(/\AFiles \(\d+\)\z/)
+      expect(document.tabs).to have_tab("files (3)")
+      expect(document.tabs).to have_no_tab("Files")
+      expect(document.tabs).to have_no_tab(/\AFiles\z/)
+      expect(document.tabs.has_tab?(/\AFiles\z/, wait: 0)).to be(false)
+      expect(document.tabs.has_no_tab?(/Files/, wait: 0)).to be(false)
+    end
+
+    it "switches to the tab a regexp matches" do
+      document.tabs.switch(/\AFiles/)
+      expect(document.tabs.current).to eq("Files (3)")
+      expect(document.tabs.body).to have_text("Three files.")
+      expect { document.tabs.switch(/Missing/) }.to raise_error(Capybara::ElementNotFound, /Missing/)
+      expect { document.tabs.switch("Files") }.to raise_error(Capybara::ElementNotFound)
+    end
+  end
+
   it "does not take the main menu for tabs" do
     dashboard = Pages::Dashboard.new
     dashboard.load
@@ -36,6 +60,14 @@ RSpec.describe ActiveAdminPageObjects::Tabs do
   end
 
   context "with rack_test", driver: :rack_test do
+    it "finds a tab by a regexp" do
+      documents = Pages::DocumentShow.new
+      documents.load(id: create_document.id)
+      expect(documents.tabs).to have_tab(/\AFiles \(\d+\)\z/)
+      expect(documents.tabs).to have_no_tab(/\Afiles/)
+      expect(documents.tabs).to have_tab(/\Afiles/i)
+    end
+
     it "lists the tabs without an open one" do
       expect(show.tabs.labels).to eq(%w[Overview Orders])
       expect(show.tabs.current).to be_nil

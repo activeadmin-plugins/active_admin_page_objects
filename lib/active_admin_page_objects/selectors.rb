@@ -95,6 +95,9 @@ module ActiveAdminPageObjects
       pagination_next: ".next a",
       pagination_previous: ".prev a",
 
+      download_links: "#index_footer .download_links",
+      download_link: "a",
+
       batch_actions: "form#collection_selection",
       batch_actions_toggle_all: "#collection_selection_toggle_all",
       batch_actions_button: ".batch_actions_selector a.dropdown_menu_button",
@@ -112,6 +115,8 @@ module ActiveAdminPageObjects
       form_input_wrapper: "li.input:not(.hidden):not(.has_many_delete)",
       form_input: "li#%s_%s_input",
       form_choice: "li.choice label",
+      # The hidden input of a boolean or check_boxes wrapper is not a control.
+      form_control: "input:not([type=hidden]), select, textarea",
       form_inline_error: "p.inline-errors",
       form_semantic_error: "ul.errors > li",
       form_submit: "fieldset.actions input[type=submit], fieldset.actions button[type=submit]",

@@ -170,6 +170,8 @@ row.cell(:email) # the <td>
 row.select # ticks the batch-action checkbox
 row.status_tag(:status) # see Status tags
 table.rows.map(&:record_id)
+expect(table).to have_row(customer.id) # by record id
+expect(table).to have_no_row(deleted.id)
 ```
 
 Sorting reads and clicks the header links:
@@ -220,6 +222,13 @@ expect(tag).to have_label("pending")
 
 `label` returns the DOM text. ActiveAdmin 3's CSS uppercases it on screen. The matchers ignore the case of the label.
 
+A cell may hold several status tags. `have_status_tag` passes when any of them matches, and `have_no_status_tag` when none does. `status_tag(key)` raises `Capybara::Ambiguous` for such a cell: use `status_tags(key)`.
+
+```ruby
+expect(row).to have_status_tag(:flags, "Archived", type: "warning")
+row.status_tags(:flags).map(&:label) # => ["Draft", "Archived"]
+```
+
 ### Panel
 
 ```ruby
@@ -238,6 +247,15 @@ show.notes.links # => [{ text: "Invoices", href: "/admin/invoices?customer=1" }]
 A sidebar section works the same way, with `ActiveAdminPageObjects::Sidebar` and the `:active_admin_sidebar` selector: `section :help, ActiveAdminPageObjects::Sidebar, :active_admin_sidebar, "Help"`.
 
 `links` lists the links of the body, each with its text and its `href` attribute as the page wrote it, on every driver.
+
+A String title is the whole title, ignoring case. For a title with a changing part, such as "Possible Routes (2)", pass a Regexp, which is case-sensitive unless it has `/i`. It works for `page.panel`, `page.sidebar` and both selectors:
+
+```ruby
+section :routes, ActiveAdminPageObjects::Panel, :active_admin_panel, /\APossible Routes \(\d+\)\z/
+
+show.panel(/\APossible Routes/).title # => "Possible Routes (2)"
+show.sidebar(/\AVersions/)
+```
 
 ### Comments
 
@@ -319,6 +337,21 @@ expect(index.pagination).to have_current_page(2)
 index.pagination.current_page # => 2
 ```
 
+### Download links
+
+The "Download: CSV XML JSON" links under the index table. ActiveAdmin renders them only when the index has records. A format is named by its link text, ignoring case.
+
+```ruby
+links = index.download_links # section :download_links, ActiveAdminPageObjects::DownloadLinks
+links.formats # => ["CSV", "XML", "JSON"]
+expect(links).to have_format("CSV")
+expect(links).to have_no_format("PDF")
+links.href(:csv) # => "/admin/customers.csv", the attribute as written
+links.click(:csv)
+```
+
+Under `rack_test`, `click` loads the file: read it from `page.body`. A JavaScript driver downloads a CSV file as the browser does and stays on the page.
+
 ### Batch actions
 
 Actions are found by label (`"Delete Selected"`) or by name (`:destroy`). `apply(label, inputs = {})` opens the menu and clicks the action. An action with `confirm:` or `form:` opens ActiveAdmin's modal dialog: `apply` sets each of `inputs` by field name and clicks OK.
@@ -363,9 +396,10 @@ form.submit
 - `Form::RadioField` for `radio`: `fill` picks the radio button with that label. `options` and `selected`.
 - `Form::CheckBoxesField` for `check_boxes`: `fill` takes an array of labels, ticks them and unticks the others. `check(*labels)`, `uncheck(*labels)` and `checked`.
 - `Form::DatePickerField` for `datepicker`: `fill` takes a Date or a string and types it in. It does not use the jQuery UI datepicker.
+- `Form::FileField` for `file`: `fill` takes the path of the file and attaches it. A JavaScript driver needs an absolute path.
 - `Form::Field` for any other class: `fill` types text, picks a select option or ticks a checkbox, by what the wrapper holds.
 
-Every field also has `errors`, and `choose(option)` for a select or a radio button.
+Every field also has `errors`, `disabled?` and `enabled?`, and `choose(option)` for a select or a radio button.
 
 ```ruby
 form.field(:status).options # => ["active", "pending", "closed"]
@@ -375,7 +409,21 @@ form.field(:tier).selected # => "Gold", the chosen radio button
 form.field(:channels).fill(%w[Email Post])
 form.field(:channels).checked # => ["Email", "Post"]
 form.field(:signed_on).fill(Date.new(2026, 1, 31))
+form.field(:contract).fill(Rails.root.join("spec/fixtures/contract.pdf"))
 ```
+
+#### Disabled fields
+
+```ruby
+expect(form).to have_disabled_field(:code)
+expect(form).to have_enabled_field(:name)
+expect(form).to have_no_disabled_field(:name)
+form.field(:code).disabled? # => true, without waiting
+```
+
+- A field is disabled when every control in it is: the input, the select, or each radio button or checkbox of a field with choices. It is enabled when a control is not disabled. Hidden inputs do not count.
+- `have_no_disabled_field` and `have_no_enabled_field` also pass when the form has no such field.
+- The matchers wait, and take `visible:` like `field`. A has_many fieldset has them too.
 
 #### Form errors
 
@@ -432,6 +480,8 @@ show.tabs.current # => "Orders", or nil before jQuery UI sets the tabs up
 expect(show.tabs.body).to have_text("Order list")
 expect(show.tabs).to have_tab("Orders")
 ```
+
+A String is the whole label, ignoring case. `switch`, `have_tab` and `have_no_tab` also take a Regexp, case-sensitive unless it has `/i`, for a label with a changing part: `show.tabs.switch(/\AOrders \(\d+\)\z/)`.
 
 ## Declared labels
 
@@ -718,10 +768,10 @@ index.table.exact_mismatches
 
 A section that declares anything raises `ArgumentError` for every other name, before it queries the page. The message gives the name and lists the declared ones. A section without declarations takes any key, as before.
 
-- `AttributesTable`: `has_row?`, `has_no_row?`, `row`, `value`, `status_tag`, `has_status_tag?` and `has_no_status_tag?`.
-- `Table`: `sort_by` and `has_sortable_column?`. Its rows: `cell`, `has_cell?`, `has_no_cell?`, `status_tag`, `has_status_tag?` and `has_no_status_tag?`.
+- `AttributesTable`: `has_row?`, `has_no_row?`, `row`, `value`, `status_tag`, `status_tags`, `has_status_tag?` and `has_no_status_tag?`.
+- `Table`: `sort_by` and `has_sortable_column?`. Its rows: `cell`, `has_cell?`, `has_no_cell?`, `status_tag`, `status_tags`, `has_status_tag?` and `has_no_status_tag?`.
 - `Filters`: `filter`.
-- `Form` and the fieldsets of a declared has_many: `field`, `fill`, `has_field_error?`, `has_no_field_error?`, `has_exact_field_errors?` and `has_no_exact_field_errors?`.
+- `Form` and the fieldsets of a declared has_many: `field`, `fill`, `has_field_error?`, `has_no_field_error?`, `has_exact_field_errors?`, `has_no_exact_field_errors?`, `has_disabled_field?`, `has_enabled_field?` and their `has_no_` forms.
 
 Filters and fields take the declared name: `form.field(:id)` and `have_field_error(:id)`.
 

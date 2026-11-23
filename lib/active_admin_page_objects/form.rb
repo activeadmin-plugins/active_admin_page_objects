@@ -66,7 +66,25 @@ module ActiveAdminPageObjects
         all(:active_admin, :form_inline_error).map { |el| el.text.strip }
       end
 
+      # True when every control of the field is disabled: each radio button
+      # or checkbox of a field with choices. Does not wait.
+      def disabled?
+        states = control_states
+        states.any? && states.all?
+      end
+
+      # True when a control of the field is not disabled. Does not wait.
+      def enabled?
+        control_states.include?(false)
+      end
+
       private
+
+      # Whether each control is disabled. A theme or a widget may hide the
+      # control it replaces, so the lookup takes hidden controls too.
+      def control_states
+        all(:active_admin, :form_control, visible: :all, wait: false).map(&:disabled?)
+      end
 
       # Each choice of a radio or check_boxes field: its label text and its
       # input, which a theme may hide to draw its own.
@@ -190,3 +208,4 @@ require_relative "form/boolean_field"
 require_relative "form/radio_field"
 require_relative "form/check_boxes_field"
 require_relative "form/date_picker_field"
+require_relative "form/file_field"

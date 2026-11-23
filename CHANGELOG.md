@@ -4,6 +4,12 @@
 
 ### Added
 
+- `Form::FileField` for formtastic's `file` input: `fill(path)` attaches the file, and `form.fill(attachment: path)` works. `Form#field` and `HasMany::Fieldset#field` return it by the input class.
+- Disabled fields: `Form::Field#disabled?` and `#enabled?` on every field type, and `have_disabled_field(name)` and `have_enabled_field(name)` with their `have_no_` forms on a form and on a has_many fieldset.
+- `have_status_tag` and `have_no_status_tag` look at every status tag of the cell, not only the first. `status_tags(key)` on an index row and on the attributes table returns all of them.
+- `Table#has_row?(record_id)` and `#has_no_row?(record_id)`: `expect(table).to have_row(customer.id)`.
+- Regexp titles: `Tabs#switch`, `have_tab`, `page.panel`, `page.sidebar` and the `:active_admin_panel` and `:active_admin_sidebar` selectors take a Regexp for a title with a changing part, such as "Possible Routes (2)". A String still compares the whole title.
+- `DownloadLinks`, declared with `section :download_links, ActiveAdminPageObjects::DownloadLinks`: `formats`, `have_format(format)`, `href(format)` and `click(format)` for the "Download: CSV XML JSON" links of an index page.
 - Declared elements: `AttributesTable.row(key, label)`, `Table.column(key, label)`, `Filters.filter(name, label, type)` and `Form.field(name, label, type)` declare a section's elements with their labels, also inside a `section ... do` block. A filter or a field also needs its section class.
 - `have_declared_rows`, `have_declared_columns`, `have_declared_filters` and `have_declared_fields` compare the declared labels with the page exactly. `have_exact_rows`, `have_exact_columns`, `have_exact_filters` and `have_exact_fields` also fail when the page has an element that is not declared. All take `only:` and `except:`. `declared_label_mismatches` and `exact_mismatches` return what differs.
 - Lookups and matchers see only visible elements, as Capybara does by default. `visible: :all` on a call takes hidden elements too: `form.field(:notes, visible: :all)`, `have_exact_fields(visible: :all)`, `exact_mismatches(visible: :all)`. `visible: :all` on a declaration makes it the default for that element: `field :notes, "Notes", ActiveAdminPageObjects::Form::StringField, visible: :all`.

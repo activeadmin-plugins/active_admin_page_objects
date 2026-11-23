@@ -127,7 +127,7 @@ ActiveAdmin.register Customer do
     f.has_many :orders, heading: "Orders", allow_destroy: true do |o|
       o.input :reference
       o.input :state, as: :select, collection: Order::STATES
-      o.input :quantity
+      o.input :quantity, input_html: { disabled: params[:lock_quantity].present? }
     end
     f.actions
   end

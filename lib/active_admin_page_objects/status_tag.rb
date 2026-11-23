@@ -2,7 +2,8 @@
 
 module ActiveAdminPageObjects
   # A `status_tag`. Reached with `row.status_tag(:status)` on an index row or
-  # `attributes_table.status_tag(:status)` on a show page.
+  # `attributes_table.status_tag(:status)` on a show page. A cell with several
+  # tags gives them with `status_tags(:status)`.
   class StatusTag < Section
     selector_key :status_tag
 
@@ -10,14 +11,19 @@ module ActiveAdminPageObjects
     module Matchers
       private
 
-      # Waits until the cell +cell_css+ has (+expected+ true) or lacks a
-      # status tag with +label+ and +type+. +visible+ is Capybara's option.
+      # Waits until a status tag of the cell +cell_css+ has +label+ and +type+
+      # (+expected+ true), or none has. +visible+ is Capybara's option.
       def status_tag_match?(expected, cell_css, label, type, **options)
         visibility = Declarations.visibility(nil, options.delete(:visible))
         eventually(**options) do
-          node = first(:css, "#{cell_css} #{sel(:status_tag)}", minimum: 0, wait: false, **visibility)
-          (!node.nil? && StatusTag.new(self, node).match?(label, type: type)) == expected
+          tags = status_tags_in(cell_css, **visibility)
+          tags.any? { |tag| tag.match?(label, type: type) } == expected
         end
+      end
+
+      # The status tags of the cell +cell_css+, in page order, without waiting.
+      def status_tags_in(cell_css, **visibility)
+        all(:css, "#{cell_css} #{sel(:status_tag)}", wait: false, **visibility).map { |node| StatusTag.new(self, node) }
       end
     end
 

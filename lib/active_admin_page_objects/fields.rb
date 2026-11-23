@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "fields/states"
+
 module ActiveAdminPageObjects
   # The fields of a formtastic form, or of one has_many fieldset. Form and
   # HasMany::Fieldset include it. A field is named by its attribute, as in
@@ -24,12 +26,13 @@ module ActiveAdminPageObjects
       "boolean" => :BooleanField,
       "radio" => :RadioField,
       "check_boxes" => :CheckBoxesField,
-      "datepicker" => :DatePickerField
+      "datepicker" => :DatePickerField,
+      "file" => :FileField
     }.freeze
     private_constant :FIELD_CLASSES
 
     def self.included(base)
-      base.include(Declarations)
+      base.include(Declarations, States)
       base.extend(ClassMethods)
     end
 

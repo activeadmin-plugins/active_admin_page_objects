@@ -33,6 +33,16 @@ RSpec.describe ActiveAdminPageObjects::Sidebar do
     it_behaves_like "sidebar links"
   end
 
+  it "is found by a regexp title" do
+    show = Pages::DocumentShow.new
+    show.load(id: create_document.id)
+    expect(show.versions.title).to eq("Versions (2)")
+    expect(show.versions.body).to have_text("Two versions.")
+    expect(show.sidebar(/\AVersions \(\d+\)\z/).title).to eq("Versions (2)")
+    expect(show).to have_no_selector(:active_admin_sidebar, "Versions")
+    expect(show).to have_no_selector(:active_admin_sidebar, /Routes/)
+  end
+
   it "is found by title on the show page" do
     customer = create_customer
     Order.create!(customer: customer, reference: "REF-1", state: "new", quantity: 1)

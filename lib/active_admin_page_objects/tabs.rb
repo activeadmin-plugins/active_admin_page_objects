@@ -2,7 +2,9 @@
 
 module ActiveAdminPageObjects
   # The `tabs` component. jQuery UI switches the tabs, so #current and #switch
-  # need a JavaScript driver; without one every tab body is shown.
+  # need a JavaScript driver; without one every tab body is shown. A tab is
+  # named by its whole label, ignoring case, or by a Regexp for a label with a
+  # changing part: `switch(/\AOrders \(\d+\)\z/)`.
   class Tabs < Section
     selector_key :tabs
 
@@ -18,7 +20,7 @@ module ActiveAdminPageObjects
       current_link&.text&.strip
     end
 
-    # Opens the tab labelled +label+ (case-insensitive).
+    # Opens the tab labelled +label+: a String (case-insensitive) or a Regexp.
     def switch(label)
       link = find_link(label) || raise(Capybara::ElementNotFound, "no tab #{label.inspect} in #{labels.inspect}")
       link.click
@@ -52,7 +54,7 @@ module ActiveAdminPageObjects
     end
 
     def find_link(label)
-      links.find { |link| same_text?(link.text, label) }
+      links.find { |link| text_match?(link.text, label) }
     end
   end
 end

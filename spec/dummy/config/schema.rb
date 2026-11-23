@@ -39,6 +39,11 @@ ActiveRecord::Schema.define do
     t.timestamps
   end
 
+  create_table :documents do |t|
+    t.string :name, :state, :kind, :code, :attachment_name
+    t.boolean :archived, default: false, null: false
+  end
+
   create_table :tags do |t|
     t.string :name
   end

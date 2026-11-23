@@ -1,6 +1,13 @@
 # frozen_string_literal: true
 
 RSpec.describe ActiveAdminPageObjects::Text do
+  it "matches a regexp against the squished text, and any other value as the same text" do
+    expect(ActiveAdminPageObjects.text_match?(" Possible\n Routes (2) ", /\APossible Routes \(\d+\)\z/)).to be(true)
+    expect(ActiveAdminPageObjects.text_match?("Possible Routes (2)", /\ARoutes/)).to be(false)
+    expect(ActiveAdminPageObjects.text_match?("ROUTES ", "Routes")).to be(true)
+    expect(ActiveAdminPageObjects.text_match?("Routes (2)", "Routes")).to be(false)
+  end
+
   it "normalizes whitespace and case" do
     expect(ActiveAdminPageObjects.normalize_text("  EXTERNAL\n  Id ")).to eq("external id")
     expect(ActiveAdminPageObjects.same_text?("CREATED AT", "Created at")).to be(true)
