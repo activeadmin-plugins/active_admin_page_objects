@@ -141,6 +141,8 @@ expect(row).to have_no_cell(:email, text: "old@example.com")
 row.cell(:email) # the <td>
 row.select # ticks the batch-action checkbox
 table.rows.map(&:record_id)
+expect(table).to have_row(customer.id) # by record id
+expect(table).to have_no_row(deleted.id)
 ```
 
 The section defaults to `table.data-table`. Pass a locator for another table, such as a `table_for` inside a panel: `section :orders, ActiveAdminPageObjects::Table, "#orders_panel table"`.
@@ -173,6 +175,14 @@ show.notes.links # => [{ text: "Invoices", href: "/admin/invoices?customer=1" }]
 ```
 
 `links` lists the links of the body, each with its text and its `href` attribute as the page wrote it, on every driver.
+
+A String title is the whole title, ignoring case. For a title with a changing part, such as "Possible Routes (2)", pass a Regexp, which is case-sensitive unless it has `/i`. It works for `page.panel` and the `:active_admin_panel` selector:
+
+```ruby
+section :routes, ActiveAdminPageObjects::Panel, :active_admin_panel, /\APossible Routes \(\d+\)\z/
+
+show.panel(/\APossible Routes/).title # => "Possible Routes (2)"
+```
 
 ### Filters
 
@@ -234,6 +244,21 @@ expect(index.pagination).to have_current_page(2)
 index.pagination.current_page # => 2
 ```
 
+### Download links
+
+The "Download: CSV XML JSON" links under the index table. ActiveAdmin renders them only when the index has records. A format is named by its link text, ignoring case.
+
+```ruby
+links = index.download_links # section :download_links, ActiveAdminPageObjects::DownloadLinks
+links.formats # => ["CSV", "XML", "JSON"]
+expect(links).to have_format("CSV")
+expect(links).to have_no_format("PDF")
+links.href(:csv) # => "/admin/customers.csv", the attribute as written
+links.click(:csv)
+```
+
+Under `rack_test`, `click` loads the file: read it from `page.body`. A JavaScript driver downloads a CSV file as the browser does and stays on the page.
+
 ### Batch actions
 
 Actions are found by label (`"Delete Selected"`) or by name (`:destroy`). `apply` opens the menu, clicks the action, and accepts its confirmation.
@@ -264,9 +289,10 @@ form.submit
 - `Form::RadioField` for `radio`: `fill` picks the radio button with that label. `options` and `selected`.
 - `Form::CheckBoxesField` for `check_boxes`: `fill` takes an array of labels, ticks them and unticks the others. `check(*labels)`, `uncheck(*labels)` and `checked`.
 - `Form::DatePickerField` for `date_picker`, a native `<input type="date">`: `fill` takes a Date or a string such as `"2026-01-31"`.
+- `Form::FileField` for `file`: `fill` takes the path of the file and attaches it. A JavaScript driver needs an absolute path.
 - `Form::Field` for any other class: `fill` types text, picks a select option or ticks a checkbox, by what the wrapper holds.
 
-Every field also has `errors`, and `choose(option)` for a select or a radio button.
+Every field also has `errors`, `disabled?` and `enabled?`, and `choose(option)` for a select or a radio button.
 
 ```ruby
 form.field(:status).options # => ["active", "pending", "closed"]
@@ -276,7 +302,21 @@ form.field(:tier).selected # => "Gold", the chosen radio button
 form.field(:channels).fill(%w[Email Post])
 form.field(:channels).checked # => ["Email", "Post"]
 form.field(:signed_on).fill(Date.new(2026, 1, 31))
+form.field(:contract).fill(Rails.root.join("spec/fixtures/contract.pdf"))
 ```
+
+#### Disabled fields
+
+```ruby
+expect(form).to have_disabled_field(:code)
+expect(form).to have_enabled_field(:name)
+expect(form).to have_no_disabled_field(:name)
+form.field(:code).disabled? # => true, without waiting
+```
+
+- A field is disabled when every control in it is: the input, the select, or each radio button or checkbox of a field with choices. It is enabled when a control is not disabled. Hidden inputs do not count.
+- `have_no_disabled_field` and `have_no_enabled_field` also pass when the form has no such field.
+- The matchers wait, and take `visible:` like `field`.
 
 #### Form errors
 
@@ -567,7 +607,7 @@ A section that declares anything raises `ArgumentError` for every other name, be
 - `AttributesTable`: `has_row?`, `has_no_row?`, `row` and `value`.
 - `Table`: its rows' `cell`, `has_cell?` and `has_no_cell?`.
 - `Filters`: `filter`.
-- `Form`: `field`, `fill`, `has_field_error?`, `has_no_field_error?`, `has_exact_field_errors?` and `has_no_exact_field_errors?`.
+- `Form`: `field`, `fill`, `has_field_error?`, `has_no_field_error?`, `has_exact_field_errors?`, `has_no_exact_field_errors?`, `has_disabled_field?`, `has_enabled_field?` and their `has_no_` forms.
 
 Filters and fields take the declared name: `form.field(:name)` and `have_field_error(:name)`.
 

@@ -29,14 +29,15 @@ Capybara.add_selector(:active_admin) do
 end
 
 # `find(:active_admin_panel, "Notes")` finds the panel whose title is "Notes",
-# ignoring case and surrounding whitespace.
+# ignoring case and surrounding whitespace. A Regexp title matches the title
+# text instead: `find(:active_admin_panel, /\ARoutes \(\d+\)\z/)`.
 Capybara.add_selector(:active_admin_panel) do
   css { |_title| ActiveAdminPageObjects.selector(:panel) }
   locator_filter do |node, title|
     next true if title.nil?
 
     titles = node.all(:css, ActiveAdminPageObjects.selector(:panel_title), visible: :all, wait: false)
-    titles.any? { |el| ActiveAdminPageObjects.same_text?(el.text(:all), title) }
+    titles.any? { |el| ActiveAdminPageObjects.text_match?(el.text(:all), title) }
   end
 end
 
@@ -56,6 +57,7 @@ require_relative "active_admin_page_objects/filters"
 require_relative "active_admin_page_objects/filters_footer"
 require_relative "active_admin_page_objects/scopes"
 require_relative "active_admin_page_objects/pagination"
+require_relative "active_admin_page_objects/download_links"
 require_relative "active_admin_page_objects/batch_actions"
 require_relative "active_admin_page_objects/fields"
 require_relative "active_admin_page_objects/form"

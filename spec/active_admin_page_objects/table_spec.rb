@@ -103,6 +103,16 @@ RSpec.describe ActiveAdminPageObjects::Table do
       expect(table.rows.size).to eq(3)
     end
 
+    it "tells whether the record has a row" do
+      expect(table).to have_row(customers.first.id)
+      expect(table).to have_row(customers.last.id.to_s)
+      expect(table).to have_no_row(customers.last.id + 1)
+      expect(table).to have_row(customers.first.id, text: customers.first.name)
+      expect(table).to have_no_row(customers.first.id, text: "No such customer")
+      expect(table.has_row?(customers.last.id + 1, wait: 0)).to be(false)
+      expect(table.has_no_row?(customers.first.id, wait: 0)).to be(false)
+    end
+
     it "finds a row by record id and reads its cells" do
       customer = customers.first
       row = table.row(customer.id)

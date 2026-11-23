@@ -20,6 +20,12 @@ module ActiveAdminPageObjects
       normalize_text(actual) == normalize_text(expected)
     end
 
+    # True when +actual+ matches +expected+: a Regexp matches the squished
+    # text, anything else compares as #same_text?.
+    def text_match?(actual, expected)
+      expected.is_a?(Regexp) ? expected.match?(squish(actual)) : same_text?(actual, expected)
+    end
+
     # The key ActiveAdmin writes into `data-column` and `data-row`:
     # `"EXTERNAL ID"` and `:external_id` both become `"external_id"`.
     # @return [String]

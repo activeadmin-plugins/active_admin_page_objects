@@ -25,6 +25,17 @@ module ActiveAdminPageObjects
       ActiveAdminPageObjects.same_text?(actual, expected)
     end
 
+    def text_match?(actual, expected)
+      ActiveAdminPageObjects.text_match?(actual, expected)
+    end
+
+    # JavaScript drivers return the resolved `href` property; the attribute is what the page wrote.
+    def href_attribute(link)
+      link.session.evaluate_script("arguments[0].getAttribute('href')", link).to_s
+    rescue Capybara::NotSupportedByDriverError
+      link[:href].to_s
+    end
+
     def squish(text)
       ActiveAdminPageObjects.squish(text)
     end

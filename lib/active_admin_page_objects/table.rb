@@ -83,6 +83,16 @@ module ActiveAdminPageObjects
       Row.new(self, find(:css, sel(:table_row_by_id, record_id)))
     end
 
+    # True when the body has the row of the record with +record_id+.
+    def has_row?(record_id, **options)
+      has_css?(sel(:table_row_by_id, record_id), **options)
+    end
+
+    # Waits until the body has no row of the record with +record_id+.
+    def has_no_row?(record_id, **options)
+      has_no_css?(sel(:table_row_by_id, record_id), **options)
+    end
+
     # The non-empty header texts, as the driver reports them (Chrome reports
     # CSS-uppercased text).
     # @return [Array<String>]

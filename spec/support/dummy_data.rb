@@ -16,6 +16,10 @@ module DummyData
     )
   end
 
+  def create_document(**attrs)
+    Document.create!(name: "Contract", state: "draft", **attrs)
+  end
+
   def create_customers(count, **options)
     Array.new(count) { create_customer(**options) }
   end

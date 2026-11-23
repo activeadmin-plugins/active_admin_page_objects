@@ -63,7 +63,7 @@ module ActiveAdminPageObjects
       end
     end
 
-    # The panel titled +title+ (case-insensitive).
+    # The panel titled +title+: a String (case-insensitive) or a Regexp.
     # @return [Panel]
     def panel(title)
       Panel.new(self, find(:active_admin_panel, title))

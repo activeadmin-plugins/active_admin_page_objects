@@ -80,6 +80,32 @@ module Pages
     end
   end
 
+  class DocumentIndex < ActiveAdminPageObjects::Page
+    set_url "/admin/documents"
+
+    section :table, ActiveAdminPageObjects::Table
+    section :download_links, ActiveAdminPageObjects::DownloadLinks
+  end
+
+  class DocumentShow < ActiveAdminPageObjects::Page
+    set_url "/admin/documents/{id}"
+
+    section :routes, ActiveAdminPageObjects::Panel, :active_admin_panel, /\APossible Routes \(\d+\)\z/
+  end
+
+  class DocumentForm < ActiveAdminPageObjects::Page
+    set_url "/admin/documents{/id}{/action}"
+
+    section :form, ActiveAdminPageObjects::Form do
+      field :name, "Name", ActiveAdminPageObjects::Form::StringField
+      field :attachment, "Attachment", ActiveAdminPageObjects::Form::FileField
+      field :code, "Code", ActiveAdminPageObjects::Form::StringField
+      field :state, "State", ActiveAdminPageObjects::Form::SelectField
+      field :kind, "Kind", ActiveAdminPageObjects::Form::RadioField
+      field :archived, "Archived", ActiveAdminPageObjects::Form::BooleanField
+    end
+  end
+
   class OrderIndex < ActiveAdminPageObjects::Page
     set_url "/admin/orders"
 

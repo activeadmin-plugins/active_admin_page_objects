@@ -4,6 +4,9 @@ module ActiveAdminPageObjects
   # A panel. Find one by title with `page.panel("Notes")`, or declare it:
   #
   #   section :notes, ActiveAdminPageObjects::Panel, :active_admin_panel, "Notes"
+  #
+  # The title is a String, compared whole and ignoring case, or a Regexp for a
+  # title with a changing part: `page.panel(/\ARoutes \(\d+\)\z/)`.
   class Panel < Section
     selector_key :panel
 
@@ -23,15 +26,6 @@ module ActiveAdminPageObjects
     # @return [Array<Hash{Symbol => String}>] `{ text:, href: }` per link
     def links
       body.all("a", wait: false).map { |link| { text: link.text.strip, href: href_attribute(link) } }
-    end
-
-    private
-
-    # JavaScript drivers return the resolved `href` property; the attribute is what the page wrote.
-    def href_attribute(link)
-      link.session.evaluate_script("arguments[0].getAttribute('href')", link).to_s
-    rescue Capybara::NotSupportedByDriverError
-      link[:href].to_s
     end
   end
 end
