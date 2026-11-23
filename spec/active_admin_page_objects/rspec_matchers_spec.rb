@@ -33,7 +33,7 @@ RSpec.describe ActiveAdminPageObjects::RSpec::Matchers do
 
   def submit_reserved_name
     form_page.load(action: "new")
-    form_page.form.fill_fields(customer_name: "Reserved", email: "acme@example.com")
+    form_page.form.fill(name: "Reserved", email: "acme@example.com")
     form_page.form.submit
   end
 

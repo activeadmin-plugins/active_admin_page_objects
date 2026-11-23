@@ -9,8 +9,6 @@ module ActiveAdminPageObjects
   #     field :email, "Email", ActiveAdminPageObjects::Form::StringField
   #     field :status, "Status", ActiveAdminPageObjects::Form::SelectField
   #   end
-  #
-  # Each declaration defines a method of its name: `form.status`.
   class Form < Section
     include SelectControl
     include Fields

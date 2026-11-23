@@ -246,12 +246,12 @@ expect(index.batch_actions).to have_action("Flag Selected")
 
 ### Form
 
-Fields are named by attribute, as in `f.input :email`. A form that [declares its fields](#declared-labels) takes the declared names and has a method per field: `form.email`.
+Fields are named by attribute, as in `f.input :email`. A form that [declares its fields](#declared-labels) takes the declared names.
 
 ```ruby
 form = form_page.form # section :form, ActiveAdminPageObjects::Form
 form.field(:email).fill("acme@example.com")
-form.fill_fields(name: "Acme", category: "Retail", active: false) # in this order
+form.fill(name: "Acme", category: "Retail", active: false) # in this order
 form.submit
 ```
 
@@ -347,27 +347,22 @@ expect(form_page.form).to have_exact_fields
 ```
 
 - `row(key, label)` and `column(key, label)` need the label. An untitled column takes `""`: the selection column is `:selectable` and the actions column is `:actions`.
-- `filter(name, label, type, attribute: name)` and `field(name, label, type, attribute: name)` need the label and the section class.
+- `filter(name, label, type)` and `field(name, label, type)` need the label and the section class.
 
 SitePrism 5 and 6 turn the block into a subclass of the section class. A named subclass takes the same lines in its class body. A subclass inherits the declarations of its superclass and adds its own.
 
-### Accessors
+### Declarations define no methods
 
-`filter` and `field` define a method of the declared name on the section. It returns `filter(name)` or `field(name)`:
-
-```ruby
-index.filters.balance.fill_in(with: 100, predicate: :gt)
-form_page.form.status.fill("pending")
-```
-
-The declaration raises `ArgumentError` when the section already has a method of that name, public or private, its own or inherited. SitePrism sections have `name`, `title`, `text` and `select`, among others. Give the element another name and pass its attribute:
+A declaration defines no method on the section, so any name is valid, including `name` and `title`. Reach an element with `filter(name)` or `field(name)`:
 
 ```ruby
-field :customer_name, "Name", ActiveAdminPageObjects::Form::StringField, attribute: :name
-filter :customer_name, "Name", ActiveAdminPageObjects::StringFilter, attribute: :name
+index.filters.filter(:balance).fill_in(with: 100, predicate: :gt)
+form_page.form.field(:status).fill("pending")
 ```
 
-`attribute:` is the key in the wrapper id: `:name` for `#customer_name_input` and for `#q_name_input`. A subclass can declare an inherited name again. Rows and columns get no method and take no `attribute:`.
+The name is the formtastic attribute or the ActiveAdmin filter key, and the only key: `field :name, "Name", ActiveAdminPageObjects::Form::StringField` is reached with `field(:name)`, `has_field_error?(:name)` and `fill(name: ...)`. A subclass can declare an inherited name again.
+
+For shortcuts, write your own methods in the section block.
 
 ### Declared types
 
@@ -429,9 +424,9 @@ A section that declares anything raises `ArgumentError` for every other name, be
 - `AttributesTable`: `has_row?`, `has_no_row?`, `row` and `value`.
 - `Table`: its rows' `cell`, `has_cell?` and `has_no_cell?`.
 - `Filters`: `filter`.
-- `Form`: `field`, `fill_fields`, `has_field_error?`, `has_no_field_error?`, `has_exact_field_errors?` and `has_no_exact_field_errors?`.
+- `Form`: `field`, `fill`, `has_field_error?`, `has_no_field_error?`, `has_exact_field_errors?` and `has_no_exact_field_errors?`.
 
-Filters and fields take the declared name, not the attribute: `form.field(:customer_name)` and `have_field_error(:customer_name)`.
+Filters and fields take the declared name: `form.field(:name)` and `have_field_error(:name)`.
 
 Names compare as everywhere else: `:external_id`, `"external_id"` and `"External ID"` are the same name.
 
