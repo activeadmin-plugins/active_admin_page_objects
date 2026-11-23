@@ -33,14 +33,16 @@ module ActiveAdminPageObjects
 
     # One `li.input` wrapper of the form. `Form#field` returns the declared
     # class, or the gem's subclass for the wrapper's formtastic class, or this
-    # class. The wrapper is visible unless the lookup says otherwise; a control
-    # inside it may be hidden, as a JavaScript select widget hides its `<select>`.
+    # class. The wrapper is visible unless the lookup says otherwise, and so is
+    # the control inside it: a `<select>` that a JavaScript select widget hides
+    # or marks `aria-hidden="true"` is not found, unless the class overrides
+    # `native_select_visibility`.
     class Field < Section
       include SelectControl
 
       # Sets the field: types text, picks a select option by label, or ticks a checkbox for `true`.
       def fill(value)
-        if has_css?("select", visible: :all, wait: false)
+        if has_css?("select", wait: false, **native_select_lookup) { |select| native_select_shown?(select) }
           choose_option(root_element, value.to_s)
         elsif has_css?("input[type=checkbox]", wait: false) && [true, false].include?(value)
           find("input[type=checkbox]").set(value)

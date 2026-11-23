@@ -28,7 +28,7 @@
 - `Tabs`, `UtilityNavigation` and `DropdownMenu` (`action_items.dropdown("More")`).
 - `ActiveAdminPageObjects.register_selectors(**map)` takes only the selector map.
 - `ActiveAdminPageObjects::Layout.add_section` and `Layout.add_element` add a section or an element to every page that includes `Layout`, including page classes defined earlier.
-- `ActiveAdminPageObjects::SelectControl` drives a native `<select>` for `SelectFilter` and `Form::Field`. A gem with a JavaScript select widget prepends a module into it.
+- `ActiveAdminPageObjects::SelectControl` drives a visible native `<select>` for `SelectFilter`, `BooleanFilter`, `Form::SelectField`, `Form::Field` and the predicate select of `StringFilter` and `NumericFilter`. A `<select>` that is hidden or marked `aria-hidden="true"`, as a JavaScript select widget leaves it, raises `Capybara::ElementNotFound` when it is picked from or read. A section class for a widget overrides the private `native_select_visibility` to return `:all` and read the hidden select, and overrides `select_option` or `fill` to drive the widget. A gem with a widget on every select prepends a module into `SelectControl`.
 - `ActiveAdminPageObjects.check_version!` for theme and plugin page objects.
 - `dark_mode_toggle` and `user_menu_button` raise `NotInActiveAdmin3`: ActiveAdmin 3 has neither.
 

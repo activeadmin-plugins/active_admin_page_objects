@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 module ActiveAdminPageObjects
-  # A select filter. Drives a native <select> through SelectControl, which a
-  # gem rendering a JS select widget can prepend into.
+  # A select filter. Drives a visible native <select> through SelectControl.
+  # A subclass for a JS select widget overrides `native_select_visibility`.
   class SelectFilter < Filter
     include SelectControl
 
