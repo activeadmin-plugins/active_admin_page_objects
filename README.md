@@ -200,7 +200,7 @@ section :name_filter, ActiveAdminPageObjects::StringFilter, "#q_name_input"
 section :filters_footer, ActiveAdminPageObjects::FiltersFooter # submit and clear
 ```
 
-`SelectFilter` drives a native `<select>`:
+`SelectFilter` drives a visible native `<select>`. One that is hidden or marked `aria-hidden="true"`, as a JavaScript select widget leaves it, raises `Capybara::ElementNotFound`: see [Hidden selects](#hidden-selects).
 
 ```ruby
 customer = filters.filter(:customer)
@@ -258,7 +258,7 @@ form.submit
 `field(name)` returns the section typed by the formtastic input class. `fill(value)` sets the field the way its type needs.
 
 - `Form::StringField` for `string`, `email`, `url`, `phone`, `password`, `number` and `text`: `fill` types the value. `value`.
-- `Form::SelectField` for `select`: `fill` picks the option with that label. `options` (without the blank option) and `selected`.
+- `Form::SelectField` for `select`: `fill` picks the option with that label. `options` (without the blank option) and `selected`. The `<select>` is visible: see [Hidden selects](#hidden-selects).
 - `Form::BooleanField` for `boolean`: `fill(true)` ticks the checkbox and `fill(false)` unticks it. `checked?`.
 - `Form::RadioField` for `radio`: `fill` picks the radio button with that label. `options` and `selected`.
 - `Form::CheckBoxesField` for `check_boxes`: `fill` takes an array of labels, ticks them and unticks the others. `check(*labels)`, `uncheck(*labels)` and `checked`.
@@ -371,7 +371,7 @@ For shortcuts, write your own methods in the section block.
 
 ```ruby
 class MySelectField < ActiveAdminPageObjects::Form::SelectField
-  # ...
+  # drives the widget: see Hidden selects below
 end
 
 section :form, ActiveAdminPageObjects::Form do
@@ -382,6 +382,40 @@ end
 The declared class must be the class the gem detects for the wrapper, or a subclass of it. Otherwise the lookup raises `Capybara::ExpectationNotMet`, and the message names both classes.
 
 The gem detects its own classes by the formtastic class of the wrapper, and `Form::Field` or `Filter` for any other input. That list is fixed: there is no registry to add to. A section without declarations returns the detected class.
+
+### Hidden selects
+
+`SelectFilter`, `BooleanFilter`, `Form::SelectField`, `Form::Field` and the predicate select of `StringFilter` and `NumericFilter` find the native `<select>` as Capybara finds elements by default, and leave out a select marked `aria-hidden="true"`. When it is hidden or marked so, as a JavaScript select widget leaves it, picking and reading raise `Capybara::ElementNotFound`: `select_option`, `fill`, `selected`, `options`, `have_selected`, `have_option`, `have_item`, `have_disabled` and their `have_no_` forms. A page object that declares `SelectFilter` on a widget fails, and does not drive the select behind the widget.
+
+For a widget, declare your own class. Override the method that picks, to drive the widget, and the private `native_select_visibility`, to read the select the widget hides:
+
+```ruby
+class MySelectFilter < ActiveAdminPageObjects::SelectFilter
+  def select_option(label)
+    find(".my-widget-toggle").click
+    # the widget may append its dropdown to <body>, outside the filter
+    root_element.session.find(".my-widget-option", exact_text: label).click
+  end
+
+  private
+
+  def native_select_visibility
+    :all
+  end
+end
+
+section :filters, ActiveAdminPageObjects::Filters do
+  filter :customer, "Customer", MySelectFilter
+end
+
+filters.filter(:customer).select_option("Acme") # clicks the widget
+expect(filters.filter(:customer)).to have_selected("Acme") # reads the hidden <select>
+```
+
+- `native_select_visibility` returns the Capybara `visible:` value of every lookup of the native `<select>`: `:all`, `:hidden`, `:visible`, `true` or `false`. The default is `nil`: no `visible:`, so `Capybara.ignore_hidden_elements` decides.
+- A lookup of visible elements also leaves out a select marked `aria-hidden="true"`, on every driver. A widget may clip its select to one pixel, which Cuprite reports as visible, and mark it `aria-hidden`. `:all` takes that select too.
+- With `:all` the inherited methods pick from the hidden select and read it. Override the ones that have to go through the widget.
+- A `Form::SelectField` subclass overrides `fill` the same way.
 
 ### Label matchers
 
@@ -455,7 +489,7 @@ expect(form).to have_exact_fields # passes with the notes field hidden or shown
 - `have_exact_field_errors` has no `visible:` option, because its keywords are field names. It counts the errors of the visible fields and of the fields declared with `visible:`.
 - `value(key, visible: :all)` returns the DOM text: a hidden cell has no visible text.
 - `visible:` finds the element itself. A section still looks for its own controls as Capybara does by default, so `fill` and `value` of a hidden text field raise `Capybara::ElementNotFound`.
-- The `<select>` inside a visible field or filter may be hidden, as a JavaScript select widget hides it. The gem finds it either way.
+- The `<select>` inside a visible field or filter is a control like any other: hidden or marked `aria-hidden="true"`, as a JavaScript select widget leaves it, it is not found. See [Hidden selects](#hidden-selects).
 
 ### Failure messages
 
@@ -611,7 +645,7 @@ To use your own field or filter class, declare it on the section: `field :status
 
 ### Select widgets
 
-`ActiveAdminPageObjects::SelectControl` drives a native `<select>` for `SelectFilter` and `Form::Field`. A gem with a JavaScript select widget prepends a module into it and overrides the private methods `choose_option(scope, label)`, `option_offered?(scope, label)`, `control_disabled?(scope)` and `chosen_item?(scope, label)`:
+`ActiveAdminPageObjects::SelectControl` drives a visible native `<select>` for `SelectFilter` and `Form::Field`. For a widget on some selects, declare your own class: see [Hidden selects](#hidden-selects). A gem that renders a JavaScript select widget for every select prepends a module into `SelectControl` instead. It overrides the private methods `choose_option(scope, label)`, `option_offered?(scope, label)`, `control_disabled?(scope)` and `chosen_item?(scope, label)`, and `native_select_visibility` for the methods that still read the hidden `<select>`:
 
 ```ruby
 module MyWidget
@@ -620,6 +654,10 @@ module MyWidget
 
     def choose_option(scope, label)
       # open the widget and click the option
+    end
+
+    def native_select_visibility
+      :all
     end
   end
 end

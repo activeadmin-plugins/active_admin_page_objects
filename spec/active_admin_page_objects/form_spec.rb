@@ -409,6 +409,86 @@ RSpec.describe ActiveAdminPageObjects::Form do
     end
   end
 
+  describe "a hidden native select" do
+    let(:reading_hidden_select) do
+      Class.new(ActiveAdminPageObjects::Form::SelectField) do
+        private
+
+        def native_select_visibility = :all
+      end
+    end
+
+    # +hiding+ is the spec helper that takes the select away.
+    shared_examples "a select that is not found" do |hiding|
+      before { form_page.load(action: "new") }
+
+      it "is not found by a SelectField" do
+        status = form.field(:status)
+        status.fill("pending")
+        send(hiding, "#customer_status")
+        Capybara.using_wait_time(0) do
+          expect { status.fill("closed") }.to raise_error(Capybara::ElementNotFound)
+          expect { status.choose("closed") }.to raise_error(Capybara::ElementNotFound)
+          expect { form.fill(status: "closed") }.to raise_error(Capybara::ElementNotFound)
+          expect { status.selected }.to raise_error(Capybara::ElementNotFound)
+          expect { status.options }.to raise_error(Capybara::ElementNotFound)
+        end
+        expect(page).to have_select("customer_status", selected: "pending", visible: :all)
+      end
+
+      it "is not found by a Field" do
+        status = described_class::Field.new(form, form.field(:status).root_element)
+        status.fill("pending")
+        send(hiding, "#customer_status")
+        Capybara.using_wait_time(0) do
+          expect { status.fill("closed") }.to raise_error(Capybara::ElementNotFound)
+          expect { status.choose("closed") }.to raise_error(Capybara::ElementNotFound)
+        end
+        expect(page).to have_select("customer_status", selected: "pending", visible: :all)
+      end
+
+      it "is read by a field class that overrides native_select_visibility" do
+        select_class = reading_hidden_select
+        status = declared_form { field :status, "Status", select_class }.field(:status)
+        send(hiding, "#customer_status")
+        expect(status.options).to eq(%w[active pending closed])
+        expect(status.selected).to be_nil
+        status.fill("pending")
+        expect(status.selected).to eq("pending")
+      end
+    end
+
+    context "when CSS hides it" do
+      it_behaves_like "a select that is not found", :hide
+    end
+
+    context "when it is marked aria-hidden and CSS leaves it visible" do
+      it_behaves_like "a select that is not found", :aria_hide
+    end
+
+    context "when the page renders it aria-hidden, with rack_test", driver: :rack_test do
+      let(:form_page) { Class.new(Pages::CustomerForm) { set_url "/admin/customers/new{?query*}" }.new }
+
+      before { form_page.load(query: { aria_hidden_status: true }) }
+
+      it "is not found by a SelectField" do
+        status = form.field(:status)
+        expect { status.fill("closed") }.to raise_error(Capybara::ElementNotFound)
+        expect { status.selected }.to raise_error(Capybara::ElementNotFound)
+        expect { status.options }.to raise_error(Capybara::ElementNotFound)
+        expect(form.field(:category).options).to eq(["Retail"])
+      end
+
+      it "is read by a field class that overrides native_select_visibility" do
+        select_class = reading_hidden_select
+        status = declared_form { field :status, "Status", select_class }.field(:status)
+        expect(status.options).to eq(%w[active pending closed])
+        status.fill("pending")
+        expect(status.selected).to eq("pending")
+      end
+    end
+  end
+
   describe "declared fields" do
     let(:strict_class) do
       Class.new(described_class) do

@@ -74,7 +74,7 @@ ActiveAdmin.register Customer do
       f.input :name, as: :string
       f.input :email, as: :email
       f.input :external_id, as: :string
-      f.input :status, as: :select, collection: Customer::STATUSES
+      f.input :status, as: :select, collection: Customer::STATUSES, input_html: { "aria-hidden": params[:aria_hidden_status] }
       f.input :category, as: :select
       f.input :balance, as: :number
       f.input :active, as: :boolean

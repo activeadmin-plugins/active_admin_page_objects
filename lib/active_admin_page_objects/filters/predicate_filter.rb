@@ -3,7 +3,8 @@
 module ActiveAdminPageObjects
   # A filter with a predicate select and one value input (string, numeric).
   # Changing the predicate renames the input in JavaScript, so a predicate
-  # other than the current one needs a JavaScript driver.
+  # other than the current one needs a JavaScript driver. A hidden predicate
+  # select is not found: see SelectControl.
   class PredicateFilter < Filter
     include SelectControl
 
@@ -24,13 +25,11 @@ module ActiveAdminPageObjects
       eventually(**options) { !value_matches?(value, predicate) }
     end
 
-    # The selected predicate label, or nil without a predicate select.
+    # The selected predicate label, or nil without a visible predicate select.
     # @return [String, nil]
     def predicate
       select = predicate_select
-      return unless select
-
-      select.find("option[value=\"#{select.value}\"]", visible: :all).text(:all).strip
+      select && selected_label(select)
     end
 
     private
@@ -40,11 +39,19 @@ module ActiveAdminPageObjects
     end
 
     def predicate_select
-      first(:active_admin, :filter_predicate, visible: :all, minimum: 0)
+      first(:active_admin, :filter_predicate, minimum: 0, **native_select_lookup) { |select| native_select_shown?(select) }
+    end
+
+    def predicate_select!
+      predicate_select || raise(Capybara::ElementNotFound, "#{self.class} has no predicate select")
     end
 
     def predicate_scope
-      predicate_select&.find(:xpath, "..") || raise(Capybara::ElementNotFound, "#{self.class} has no predicate select")
+      predicate_select!.find(:xpath, "..")
+    end
+
+    def selected_label(select)
+      select.find("option[value=\"#{select.value}\"]", visible: :all).text(:all).strip
     end
 
     def predicate_label(predicate)
@@ -55,10 +62,10 @@ module ActiveAdminPageObjects
     end
 
     def value_matches?(value, predicate)
+      selected = selected_label(predicate_select!) if predicate
       return false unless value_input.value.to_s == value.to_s
-      return true if predicate.nil?
 
-      same_text?(self.predicate, predicate_label(predicate))
+      predicate.nil? || same_text?(selected, predicate_label(predicate))
     end
   end
 end

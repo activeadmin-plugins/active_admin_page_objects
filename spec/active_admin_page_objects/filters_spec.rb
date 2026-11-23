@@ -327,6 +327,105 @@ RSpec.describe ActiveAdminPageObjects::Filters do
     end
   end
 
+  describe "a hidden native select" do
+    # The section class of a select widget: it reads the select the widget hides.
+    def reading_hidden_select(base)
+      Class.new(base) do
+        private
+
+        def native_select_visibility = :all
+      end
+    end
+
+    before { index.load }
+
+    # +hiding+ is the spec helper that takes the select away.
+    shared_examples "a select that is not found" do |hiding|
+      it "is not found by a SelectFilter" do
+        status = filters.filter(:status)
+        expect(status).to have_selected("Any")
+        send(hiding, "#q_status")
+        Capybara.using_wait_time(0) do
+          expect { status.select_option("pending") }.to raise_error(Capybara::ElementNotFound)
+          %i[has_selected? has_no_selected? has_option? has_no_option? has_item? has_no_item?].each do |query|
+            expect { status.public_send(query, "Any") }.to raise_error(Capybara::ElementNotFound)
+          end
+          expect { status.has_disabled? }.to raise_error(Capybara::ElementNotFound)
+          expect { status.has_no_disabled? }.to raise_error(Capybara::ElementNotFound)
+        end
+        expect(page).to have_select("q_status", selected: "Any", visible: :all)
+      end
+
+      it "is not found by a BooleanFilter" do
+        active = filters.filter(:active)
+        send(hiding, "#q_active")
+        Capybara.using_wait_time(0) do
+          expect { active.set(true) }.to raise_error(Capybara::ElementNotFound)
+          %i[has_value? has_no_value?].each do |query|
+            expect { active.public_send(query, true) }.to raise_error(Capybara::ElementNotFound)
+          end
+        end
+      end
+
+      it "is not found as the predicate select of a StringFilter or a NumericFilter" do
+        %i[name balance].each do |key|
+          filter = filters.filter(key)
+          send(hiding, "#q_#{key}_input select")
+          Capybara.using_wait_time(0) do
+            expect { filter.fill_in(with: "5", predicate: :eq) }.to raise_error(Capybara::ElementNotFound)
+            expect { filter.has_value?("", predicate: "Equals") }.to raise_error(Capybara::ElementNotFound)
+            expect { filter.has_no_value?("5", predicate: "Equals") }.to raise_error(Capybara::ElementNotFound)
+          end
+          expect(filter.predicate).to be_nil
+          filter.fill_in(with: "5")
+          expect(filter).to have_value("5")
+        end
+      end
+
+      it "is read by a filter class that overrides native_select_visibility" do
+        select_class = reading_hidden_select(ActiveAdminPageObjects::SelectFilter)
+        boolean_class = reading_hidden_select(ActiveAdminPageObjects::BooleanFilter)
+        string_class = reading_hidden_select(ActiveAdminPageObjects::StringFilter)
+        declared = declared_filters do
+          filter :name, "Name", string_class
+          filter :status, "Status", select_class
+          filter :active, "Active", boolean_class
+        end
+        send(hiding, "#q_status, #q_active, #q_name_input select")
+
+        status = declared.filter(:status)
+        expect(status).to have_selected("Any")
+        expect(status).to have_option("pending")
+        expect(status).to have_no_option("archived")
+        expect(status).to have_no_disabled
+        status.select_option("pending")
+        expect(status).to have_item("pending")
+        expect(status).to have_no_selected("Any")
+
+        active = declared.filter(:active)
+        expect(active).to have_value(nil)
+        active.set(false)
+        expect(active).to have_value(false)
+
+        name = declared.filter(:name)
+        expect(name.predicate).to eq("Contains")
+        name.fill_in(with: "Beta", predicate: :eq)
+        expect(name).to have_value("Beta", predicate: "Equals")
+
+        filters.submit
+        expect(names).to eq(["Beta"])
+      end
+    end
+
+    context "when CSS hides it" do
+      it_behaves_like "a select that is not found", :hide
+    end
+
+    context "when it is marked aria-hidden and CSS leaves it visible" do
+      it_behaves_like "a select that is not found", :aria_hide
+    end
+  end
+
   describe ActiveAdminPageObjects::DateRangeFilter do
     it "sets a range from ISO strings and Date objects" do
       index.load

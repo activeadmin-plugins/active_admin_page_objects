@@ -2,7 +2,8 @@
 
 module ActiveAdminPageObjects
   class Form
-    # A select field. `fill` picks an option by its text.
+    # A select field. `fill` picks an option by its text. A subclass for a JS
+    # select widget overrides `native_select_visibility`.
     class SelectField < Field
       # Picks the option labelled +label+.
       def fill(label)
