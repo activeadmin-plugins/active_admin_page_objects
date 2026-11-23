@@ -30,8 +30,8 @@ module ActiveAdminPageObjects
     module ClassMethods
       # The declarations of this class and its superclasses, in declaration
       # order. A subclass adds to its own copy.
-      # @return [Hash{String => Hash}] name => `{ label: }`, with `type:`,
-      #   `attribute:` and `kind:` for filters, fields and has_many blocks
+      # @return [Hash{String => Hash}] name => `{ label: }`, with `type:`
+      #   and `kind:` for filters, fields and has_many blocks
       def declarations
         inherited = superclass.respond_to?(:declarations) ? superclass.declarations : {}
         inherited.merge(own_declarations).freeze
@@ -43,24 +43,11 @@ module ActiveAdminPageObjects
         own_declarations[ActiveAdminPageObjects.slug(name)] = { label: label.to_s, **options }.freeze
       end
 
-      # Declares +name+ with its section class and its attribute, and defines
-      # the instance method +name+, which returns `<kind>(name)`.
-      def declare_accessor(kind, name, label, type:, attribute:)
+      # Declares +name+ with its section class.
+      def declare_typed(kind, name, label, type:)
         raise ArgumentError, "`#{kind} #{name.inspect}` needs a section class, got #{type.inspect}" unless type.is_a?(Class)
 
-        accessor = ActiveAdminPageObjects.slug(name)
-        check_accessor(kind, name, accessor, attribute)
-        declare(name, label, type: type, attribute: ActiveAdminPageObjects.slug(attribute), kind: kind)
-        define_method(accessor) { public_send(kind, accessor) }
-      end
-
-      # An accessor replaces the accessor of an earlier declaration, and no other method.
-      def check_accessor(kind, name, accessor, attribute)
-        return if declarations.key?(accessor)
-        return unless method_defined?(accessor) || private_method_defined?(accessor)
-
-        raise ArgumentError, "`#{kind} #{name.inspect}` clashes with #{instance_method(accessor).owner}##{accessor}; " \
-                             "rename it and pass attribute: #{attribute.to_sym.inspect}"
+        declare(name, label, type: type, kind: kind)
       end
 
       def own_declarations
@@ -123,7 +110,7 @@ module ActiveAdminPageObjects
     end
 
     def undeclared_element_keys
-      page_element_keys - self.class.declarations.map { |name, declaration| declaration[:attribute] || name }
+      page_element_keys - self.class.declarations.keys
     end
 
     # Waits until the page matches the declarations in scope (+expected+ true)

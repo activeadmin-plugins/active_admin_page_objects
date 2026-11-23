@@ -2,8 +2,6 @@
 
 # Page objects for the dummy app, written the way an app writes its own. The
 # customer pages declare their elements; the order and tag pages do not.
-# SitePrism::Section#name is taken, so the `name` filter and field are
-# declared as `customer_name`.
 module Pages
   class Dashboard < ActiveAdminPageObjects::Page
     set_url "/admin/dashboard"
@@ -29,7 +27,7 @@ module Pages
       column :actions, ""
     end
     section :filters, ActiveAdminPageObjects::Filters do
-      filter :customer_name, "Name", ActiveAdminPageObjects::StringFilter, attribute: :name
+      filter :name, "Name", ActiveAdminPageObjects::StringFilter
       filter :email, "Email", ActiveAdminPageObjects::StringFilter
       filter :external_id, "External ID", ActiveAdminPageObjects::StringFilter
       filter :balance, "Balance", ActiveAdminPageObjects::NumericFilter
@@ -65,7 +63,7 @@ module Pages
     set_url "/admin/customers{/id}{/action}"
 
     section :form, ActiveAdminPageObjects::Form do
-      field :customer_name, "Name", ActiveAdminPageObjects::Form::StringField, attribute: :name
+      field :name, "Name", ActiveAdminPageObjects::Form::StringField
       field :email, "Email", ActiveAdminPageObjects::Form::StringField
       field :external_id, "External ID", ActiveAdminPageObjects::Form::StringField
       field :status, "Status", ActiveAdminPageObjects::Form::SelectField
@@ -86,7 +84,7 @@ module Pages
       end
 
       def add_order(reference)
-        orders.add.reference.fill(reference)
+        has_many(:orders).add.field(:reference).fill(reference)
       end
     end
   end

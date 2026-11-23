@@ -7,7 +7,7 @@ module ActiveAdminPageObjects
   #
   #   section :form, ActiveAdminPageObjects::Form do
   #     field :email, "Email", ActiveAdminPageObjects::Form::StringField
-  #     field :customer_name, "Name", ActiveAdminPageObjects::Form::StringField, attribute: :name
+  #     field :status, "Status", ActiveAdminPageObjects::Form::SelectField
   #   end
   module Fields
     def self.included(base)
@@ -17,11 +17,9 @@ module ActiveAdminPageObjects
 
     module ClassMethods
       # Declares the field +name+ with its +label+ and its section class
-      # +type+, and defines the method +name+ that returns it. +attribute+ is
-      # the formtastic attribute, when it differs from +name+.
-      # @raise [ArgumentError] when the section already has a method +name+
-      def field(name, label, type, attribute: name)
-        declare_accessor(:field, name, label, type: type, attribute: attribute)
+      # +type+. +name+ is the formtastic attribute.
+      def field(name, label, type)
+        declare_typed(:field, name, label, type: type)
       end
     end
 
@@ -35,8 +33,8 @@ module ActiveAdminPageObjects
       build_declared(name, declaration_for(name), detected_field_class(wrapper), wrapper)
     end
 
-    # Fills each field with its value, in the given order: `fill_fields(name: "Acme", active: false)`.
-    def fill_fields(**values)
+    # Fills each field with its value, in the given order: `fill(name: "Acme", active: false)`.
+    def fill(**values)
       values.each { |name, value| field(name).fill(value) }
     end
 
@@ -102,12 +100,12 @@ module ActiveAdminPageObjects
       Form.field_class_for(wrapper)
     end
 
-    # The attribute of the field +name+, from its declaration when fields are declared.
+    # The attribute of the field +name+, checked against the declarations when fields are declared.
     def field_key(name)
       declaration = declaration_for(name)
       raise ArgumentError, "#{name.inspect} is declared as a has_many, not as a field" if declaration&.fetch(:kind) == :has_many
 
-      declaration ? declaration[:attribute] : slug(name)
+      slug(name)
     end
 
     # Checks the name before #field_prefix queries the page.
@@ -145,8 +143,8 @@ module ActiveAdminPageObjects
       expected.reject { |_key, messages| messages.empty? }
     end
 
-    def declared_label_text(_name, declaration)
-      wrapper_label_text(sel(:form_input, field_prefix, declaration[:attribute]))
+    def declared_label_text(name, _declaration)
+      wrapper_label_text(sel(:form_input, field_prefix, name))
     end
 
     def page_element_keys

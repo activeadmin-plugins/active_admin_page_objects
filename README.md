@@ -345,12 +345,12 @@ expect(index).to have_no_modal_dialog
 
 ### Form
 
-Fields are named by attribute, as in `f.input :email`. A form that [declares its fields](#declared-labels) takes the declared names and has a method per field: `form.email`.
+Fields are named by attribute, as in `f.input :email`. A form that [declares its fields](#declared-labels) takes the declared names.
 
 ```ruby
 form = form_page.form # section :form, ActiveAdminPageObjects::Form
 form.field(:email).fill("acme@example.com")
-form.fill_fields(name: "Acme", category: "Retail", active: false) # in this order
+form.fill(name: "Acme", category: "Retail", active: false) # in this order
 form.submit
 ```
 
@@ -399,7 +399,7 @@ form.semantic_errors # => ["Name is reserved", "Balance is negative"]
 
 ### Has many
 
-`form.has_many(association)` returns a `HasMany` for a `has_many` block. Fieldsets are 0-based. A fieldset has the field methods of the form: `field`, `fill_fields` and the field error matchers.
+`form.has_many(association)` returns a `HasMany` for a `has_many` block. Fieldsets are 0-based. A fieldset has the field methods of the form: `field`, `fill` and the field error matchers.
 
 ```ruby
 orders = form.has_many(:orders)
@@ -408,7 +408,7 @@ orders.count # => 2
 expect(orders).to have_fieldsets(count: 2)
 
 fieldset = orders.add # clicks the add link, returns the new fieldset
-fieldset.fill_fields(reference: "REF-NEW", state: "shipped")
+fieldset.fill(reference: "REF-NEW", state: "shipped")
 orders.fieldset(0).field(:quantity).value # => "2"
 expect(orders.fieldset(0)).to have_exact_field_errors(quantity: "must be greater than 0")
 orders.remove(2) # a new fieldset: its remove link
@@ -477,27 +477,22 @@ expect(form_page.form).to have_exact_fields
 ```
 
 - `row(key, label)` and `column(key, label)` need the label. An untitled column takes `""`: the selection column is `:selectable` and the actions column is `:actions`.
-- `filter(name, label, type, attribute: name)` and `field(name, label, type, attribute: name)` need the label and the section class.
+- `filter(name, label, type)` and `field(name, label, type)` need the label and the section class.
 
 SitePrism 5 and 6 turn the block into a subclass of the section class. A named subclass takes the same lines in its class body. A subclass inherits the declarations of its superclass and adds its own.
 
-### Accessors
+### Declarations define no methods
 
-`filter` and `field` define a method of the declared name on the section. It returns `filter(name)` or `field(name)`:
-
-```ruby
-index.filters.balance.fill_in(with: 100, predicate: :gt)
-form_page.form.status.fill("pending")
-```
-
-The declaration raises `ArgumentError` when the section already has a method of that name, public or private, its own or inherited. SitePrism sections have `name`, `title`, `text` and `select`, among others. Give the element another name and pass its attribute:
+A declaration defines no method on the section, so any name is valid, including `name` and `title`. Reach an element with `filter(name)`, `field(name)` or `has_many(name)`:
 
 ```ruby
-field :customer_name, "Name", ActiveAdminPageObjects::Form::StringField, attribute: :name
-filter :customer_name, "Name", ActiveAdminPageObjects::StringFilter, attribute: :name
+index.filters.filter(:balance).fill_in(with: 100, predicate: :gt)
+form_page.form.field(:status).fill("pending")
 ```
 
-`attribute:` is the key in the wrapper id: `:name` for `#customer_name_input` and for `#q_name_input`. A subclass can declare an inherited name again. Rows and columns get no method and take no `attribute:`.
+The name is the formtastic attribute or the ActiveAdmin filter key, and the only key: `field :id, "Gateway", ActiveAdminPageObjects::Form::SelectField` is reached with `field(:id)`, `has_field_error?(:id)` and `fill(id: ...)`. A subclass can declare an inherited name again.
+
+For shortcuts, write your own methods in the section block.
 
 ### Declared types
 
@@ -507,27 +502,25 @@ The declared class must be the class the gem detects for the wrapper, or a subcl
 
 ### Declared has_many blocks
 
-`has_many(name, heading, attribute: name, &block)` declares a `has_many` block of a form. The form gets a method of that name, which returns the `HasMany`. The block declares the fields of a fieldset, by the same rules, and each fieldset gets a method per field.
+`has_many(name, heading, &block)` declares a `has_many` block of a form. `form.has_many(:gateways)` returns the `HasMany`. The block declares the fields of a fieldset, by the same rules.
 
 ```ruby
 section :form, ActiveAdminPageObjects::Form do
   field :email, "Email", ActiveAdminPageObjects::Form::StringField
   has_many :gateways, "Gateways" do
-    field :gateway, "Gateway", ActiveAdminPageObjects::Form::SelectField, attribute: :gateway_id
+    field :id, "Gateway", ActiveAdminPageObjects::Form::SelectField
   end
 
-  def add_gateway(name)
-    gateways.add.gateway.fill(name)
-  end
+  def add_gateway(name) = has_many(:gateways).add.field(:id).fill(name)
 end
 
-form.gateways.add.gateway # the SelectField of the new fieldset
-form.gateways.fieldset(0).gateway.selected
-expect(form.gateways.fieldsets).to all(have_exact_fields)
+form.has_many(:gateways).add.field(:id) # the SelectField of the new fieldset
+form.has_many(:gateways).fieldset(0).field(:id).selected
+expect(form.has_many(:gateways).fieldsets).to all(have_exact_fields)
 ```
 
 - `heading` is the text of the block's `h3`. The form's label matchers compare it. Pass `nil` when the form uses `heading: false`.
-- `attribute:` is the association, when the name differs from it.
+- `name` is the association.
 - A form that declares has_many blocks raises `ArgumentError` from `has_many(association)` for any other association.
 
 ### Label matchers
@@ -584,9 +577,9 @@ A section that declares anything raises `ArgumentError` for every other name, be
 - `AttributesTable`: `has_row?`, `has_no_row?`, `row`, `value`, `status_tag`, `has_status_tag?` and `has_no_status_tag?`.
 - `Table`: `sort_by` and `has_sortable_column?`. Its rows: `cell`, `has_cell?`, `has_no_cell?`, `status_tag`, `has_status_tag?` and `has_no_status_tag?`.
 - `Filters`: `filter`.
-- `Form` and the fieldsets of a declared has_many: `field`, `fill_fields`, `has_field_error?`, `has_no_field_error?`, `has_exact_field_errors?` and `has_no_exact_field_errors?`.
+- `Form` and the fieldsets of a declared has_many: `field`, `fill`, `has_field_error?`, `has_no_field_error?`, `has_exact_field_errors?` and `has_no_exact_field_errors?`.
 
-Filters and fields take the declared name, not the attribute: `form.field(:customer_name)` and `have_field_error(:customer_name)`.
+Filters and fields take the declared name: `form.field(:id)` and `have_field_error(:id)`.
 
 Names compare as everywhere else: `:external_id`, `"external_id"` and `"External ID"` are the same name.
 

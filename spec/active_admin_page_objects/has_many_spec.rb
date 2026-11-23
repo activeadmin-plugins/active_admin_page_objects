@@ -3,7 +3,7 @@
 RSpec.describe ActiveAdminPageObjects::HasMany do
   let(:form_page) { Pages::CustomerForm.new }
   let(:form) { form_page.form }
-  let(:orders) { form.orders }
+  let(:orders) { form.has_many(:orders) }
   let(:customer) { create_customer(status: "pending") }
 
   def create_order(reference, state, quantity)
@@ -13,7 +13,7 @@ RSpec.describe ActiveAdminPageObjects::HasMany do
   # The orders has_many of the form, with the fieldset fields the block declares.
   def declared_orders(&)
     form_class = Class.new(ActiveAdminPageObjects::Form) { has_many(:orders, "Orders", &) }
-    form_class.new(form_page, form.root_element).orders
+    form_class.new(form_page, form.root_element).has_many(:orders)
   end
 
   shared_examples "saved fieldsets" do
@@ -32,12 +32,12 @@ RSpec.describe ActiveAdminPageObjects::HasMany do
     end
 
     it "reads the declared fields of a fieldset by index" do
-      expect(orders.fieldset(0).reference).to have_field(with: "REF-1")
-      expect(orders.fieldset(1).reference.value).to eq("REF-B1")
+      expect(orders.fieldset(0).field(:reference)).to have_field(with: "REF-1")
+      expect(orders.fieldset(1).field(:reference).value).to eq("REF-B1")
       expect(orders.fieldset(0).field(:quantity).value).to eq("2")
-      expect(orders.fieldset(0).quantity).to be_an_instance_of(ActiveAdminPageObjects::Form::StringField)
-      expect(orders.fieldset(0).state.selected).to eq("paid")
-      expect(orders.fieldsets.map { |fieldset| fieldset.reference.value }).to eq(%w[REF-1 REF-B1])
+      expect(orders.fieldset(0).field(:quantity)).to be_an_instance_of(ActiveAdminPageObjects::Form::StringField)
+      expect(orders.fieldset(0).field(:state).selected).to eq("paid")
+      expect(orders.fieldsets.map { |fieldset| fieldset.field(:reference).value }).to eq(%w[REF-1 REF-B1])
       expect { orders.fieldset(0).field(:price) }
         .to raise_error(ArgumentError, /:price is not declared; declared keys: reference, state, quantity/)
     end
@@ -47,7 +47,6 @@ RSpec.describe ActiveAdminPageObjects::HasMany do
       expect(fieldset).to be_an_instance_of(described_class::Fieldset)
       expect(fieldset.field(:reference)).to be_an_instance_of(ActiveAdminPageObjects::Form::StringField)
       expect(fieldset.field(:state)).to be_an_instance_of(ActiveAdminPageObjects::Form::SelectField)
-      expect(fieldset).not_to respond_to(:reference)
       expect { fieldset.has_exact_fields? }.to raise_error(ArgumentError, /declares no labels/)
     end
 
@@ -59,18 +58,19 @@ RSpec.describe ActiveAdminPageObjects::HasMany do
 
     it "reports the fieldset fields that differ from the declared ones" do
       partial = declared_orders do
-        field :code, "Code", ActiveAdminPageObjects::Form::StringField, attribute: :reference
+        field :reference, "Code", ActiveAdminPageObjects::Form::StringField
         field :state, "State", ActiveAdminPageObjects::Form::SelectField
         field :price, "Price", ActiveAdminPageObjects::Form::StringField
       end
       fieldset = partial.fieldset(0)
-      expect(fieldset.code.value).to eq("REF-1")
+      expect(fieldset.field(:reference).value).to eq("REF-1")
       expect(fieldset).to have_no_exact_fields
       expect(fieldset).to have_no_declared_fields
-      expect(fieldset.declared_label_mismatches).to eq("code" => "Reference", "price" => nil)
-      expect(fieldset.exact_mismatches).to eq(missing: ["price"], unexpected: ["quantity"], labels: { "code" => "Reference" })
+      expect(fieldset.declared_label_mismatches).to eq("reference" => "Reference", "price" => nil)
+      expect(fieldset.exact_mismatches).to eq(missing: ["price"], unexpected: ["quantity"],
+                                              labels: { "reference" => "Reference" })
       expect(fieldset).to have_exact_fields(only: :state)
-      expect(fieldset).to have_declared_fields(except: %i[code price])
+      expect(fieldset).to have_declared_fields(except: %i[reference price])
     end
 
     it "builds the class a fieldset field is declared with" do
@@ -79,13 +79,13 @@ RSpec.describe ActiveAdminPageObjects::HasMany do
         field :state, "State", select_class
         field :reference, "Reference", ActiveAdminPageObjects::Form::SelectField
       end
-      expect(typed.fieldset(0).state).to be_an_instance_of(select_class)
-      expect { typed.fieldset(0).reference }
+      expect(typed.fieldset(0).field(:state)).to be_an_instance_of(select_class)
+      expect { typed.fieldset(0).field(:reference) }
         .to raise_error(Capybara::ExpectationNotMet, /SelectField, but the page has .*StringField/)
     end
 
     it "compares the inline errors of a fieldset" do
-      orders.fieldset(1).fill_fields(reference: "REF-B2", quantity: 0)
+      orders.fieldset(1).fill(reference: "REF-B2", quantity: 0)
       form.submit
 
       expect(form).to have_field_errors
@@ -119,7 +119,7 @@ RSpec.describe ActiveAdminPageObjects::HasMany do
       fieldset = orders.add
       expect(orders).to have_fieldsets(count: 3)
       expect(fieldset).to have_exact_fields
-      fieldset.fill_fields(reference: "REF-NEW", state: "shipped", quantity: 5)
+      fieldset.fill(reference: "REF-NEW", state: "shipped", quantity: 5)
       form.submit
 
       expect(form_page.flashes).to have_flash(:notice, "Customer was successfully updated.")
@@ -154,8 +154,8 @@ RSpec.describe ActiveAdminPageObjects::HasMany do
     end
 
     it "adds a fieldset and saves the customer with its order" do
-      form.fill_fields(customer_name: "Acme", email: "acme@example.com")
-      orders.add.reference.fill("REF-NEW")
+      form.fill(name: "Acme", email: "acme@example.com")
+      orders.add.field(:reference).fill("REF-NEW")
       form.add_order("REF-2")
       form.submit
 

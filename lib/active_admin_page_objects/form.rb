@@ -13,8 +13,6 @@ module ActiveAdminPageObjects
   #       field :reference, "Reference", ActiveAdminPageObjects::Form::StringField
   #     end
   #   end
-  #
-  # Each declaration defines a method of its name: `form.status`, `form.orders`.
   class Form < Section
     include SelectControl
     include Fields
@@ -42,14 +40,12 @@ module ActiveAdminPageObjects
       end
 
       # Declares the has_many block +name+ with its +heading+ (nil for
-      # `heading: false`), and defines the method +name+ that returns its
-      # HasMany. The block declares the fields of each fieldset. +attribute+
-      # is the association, when it differs from +name+.
-      # @raise [ArgumentError] when the section already has a method +name+
-      def has_many(name, heading, attribute: name, &)
+      # `heading: false`). The block declares the fields of each fieldset.
+      # +name+ is the association.
+      def has_many(name, heading, &)
         fieldsets = Class.new(HasMany::Fieldset, &)
         type = Class.new(HasMany) { self.fieldset_class = fieldsets }
-        declare_accessor(:has_many, name, heading, type: type, attribute: attribute)
+        declare_typed(:has_many, name, heading, type: type)
       end
     end
 
@@ -109,7 +105,7 @@ module ActiveAdminPageObjects
       declaration = Declarations.lookup(declared, association)
       return HasMany.new(self, find(:css, sel(:has_many, association.to_s))) unless declaration
 
-      declaration[:type].new(self, find(:css, sel(:has_many, declaration[:attribute])))
+      declaration[:type].new(self, find(:css, sel(:has_many, slug(association))))
     end
 
     # True when the base-error list shows every one of +messages+ (or any
@@ -168,7 +164,7 @@ module ActiveAdminPageObjects
     def declared_label_text(name, declaration)
       return super unless declaration[:kind] == :has_many
 
-      container = sel(:has_many, declaration[:attribute])
+      container = sel(:has_many, name)
       return unless first(:css, container, minimum: 0, wait: false, visible: :all)
 
       label_text("#{container} > h3").to_s

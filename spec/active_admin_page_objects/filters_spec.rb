@@ -78,9 +78,8 @@ RSpec.describe ActiveAdminPageObjects::Filters do
         filter :category, "Category", ActiveAdminPageObjects::BooleanFilter
       end
       expect(typed.filter(:status)).to be_an_instance_of(select_class)
-      expect(typed.status).to be_an_instance_of(select_class)
-      expect(typed.category).to be_an_instance_of(ActiveAdminPageObjects::BooleanFilter)
-      expect(filters.customer_name).to be_an_instance_of(ActiveAdminPageObjects::StringFilter)
+      expect(typed.filter(:category)).to be_an_instance_of(ActiveAdminPageObjects::BooleanFilter)
+      expect(filters.filter(:name)).to be_an_instance_of(ActiveAdminPageObjects::StringFilter)
     end
 
     it "raises when the page has a filter of another class than the declared one" do
@@ -92,24 +91,16 @@ RSpec.describe ActiveAdminPageObjects::Filters do
         Capybara::ExpectationNotMet,
         ":email is declared as ActiveAdminPageObjects::NumericFilter, but the page has ActiveAdminPageObjects::StringFilter"
       )
-      expect { mistyped.email }.to raise_error(Capybara::ExpectationNotMet, /NumericFilter/)
-      expect { mistyped.balance }.to raise_error(Capybara::ExpectationNotMet, /PredicateFilter, but the page has .*NumericFilter/)
+      expect { mistyped.filter(:email) }.to raise_error(Capybara::ExpectationNotMet, /NumericFilter/)
+      expect do
+        mistyped.filter(:balance)
+      end.to raise_error(Capybara::ExpectationNotMet, /PredicateFilter, but the page has .*NumericFilter/)
       expect(mistyped).to have_declared_filters
-    end
-
-    it "finds a filter by its attribute under another name" do
-      renamed = declared_filters { filter :code, "External ID", ActiveAdminPageObjects::StringFilter, attribute: :external_id }
-      expect(renamed.code).to be_an_instance_of(ActiveAdminPageObjects::StringFilter)
-      expect(renamed.code.root_element[:id]).to eq("q_external_id_input")
-      expect(renamed).to have_declared_filters
-      expect(renamed.exact_mismatches[:unexpected]).not_to include("external_id")
-      expect { renamed.filter(:external_id) }.to raise_error(ArgumentError, /:external_id is not declared/)
     end
 
     it "takes any key without declarations" do
       lenient = described_class.new(index, filters.root_element)
       expect(lenient.filter(:external_id)).to be_a(ActiveAdminPageObjects::StringFilter)
-      expect(lenient).not_to respond_to(:external_id)
       expect { lenient.has_declared_filters? }.to raise_error(ArgumentError, /declares no labels/)
       expect { lenient.has_exact_filters? }.to raise_error(ArgumentError, /declares no labels/)
     end
@@ -154,13 +145,10 @@ RSpec.describe ActiveAdminPageObjects::Filters do
         .to raise_error(ArgumentError, '`filter :email` needs a section class, got "StringFilter"')
     end
 
-    it "raises when the name is a method of the section" do
-      expect { Class.new(described_class) { filter :name, "Name", ActiveAdminPageObjects::StringFilter } }
-        .to raise_error(ArgumentError, "`filter :name` clashes with SitePrism::Section#name; rename it and pass attribute: :name")
-      expect { Class.new(described_class) { filter :clear, "Clear", ActiveAdminPageObjects::StringFilter } }
-        .to raise_error(ArgumentError, /clashes with ActiveAdminPageObjects::Filters#clear/)
-      expect { Class.new(described_class) { filter :sel, "Sel", ActiveAdminPageObjects::StringFilter } }
-        .to raise_error(ArgumentError, /clashes with ActiveAdminPageObjects::Section#sel/)
+    it "declares a name that is a method of the section and reaches it with filter" do
+      index.load
+      named = Class.new(described_class) { filter :name, "Name", ActiveAdminPageObjects::StringFilter }
+      expect(named.new(index, filters.root_element).filter(:name)).to be_an_instance_of(ActiveAdminPageObjects::StringFilter)
     end
 
     it "inherits declarations and leaves the superclass unchanged" do
@@ -170,24 +158,23 @@ RSpec.describe ActiveAdminPageObjects::Filters do
       end
       expect(subclass.declarations.keys).to eq(%w[email external_id status])
       expect(subclass.declarations["email"])
-        .to eq(label: "E-mail", type: ActiveAdminPageObjects::StringFilter, attribute: "email", kind: :filter)
+        .to eq(label: "E-mail", type: ActiveAdminPageObjects::StringFilter, kind: :filter)
       expect(strict_class.declarations.keys).to eq(%w[email external_id])
       expect(strict_class.declarations["email"][:label]).to eq("Email")
-      expect(strict_class.new(nil, nil)).not_to respond_to(:status)
       expect(described_class.declarations).to be_empty
     end
   end
 
   it "returns a typed section per filter" do
     index.load
-    expect(filters.customer_name).to be_a(ActiveAdminPageObjects::StringFilter)
+    expect(filters.filter(:name)).to be_a(ActiveAdminPageObjects::StringFilter)
     expect(filters.filter(:balance)).to be_a(ActiveAdminPageObjects::NumericFilter)
     expect(filters.filter(:status)).to be_a(ActiveAdminPageObjects::SelectFilter)
     expect(filters.filter(:category)).to be_a(ActiveAdminPageObjects::SelectFilter)
     expect(filters.filter(:active)).to be_a(ActiveAdminPageObjects::BooleanFilter)
     expect(filters.filter(:created_at)).to be_a(ActiveAdminPageObjects::DateRangeFilter)
     # ActiveAdmin 3 uppercases sidebar labels in CSS and Chrome reports the uppercased text.
-    expect(filters.customer_name.label).to match(/\Aname\z/i)
+    expect(filters.filter(:name).label).to match(/\Aname\z/i)
   end
 
   it "registers a section for another input class" do
@@ -202,14 +189,14 @@ RSpec.describe ActiveAdminPageObjects::Filters do
   describe ActiveAdminPageObjects::StringFilter do
     it "fills in with a predicate label and submits" do
       index.load
-      filters.customer_name.fill_in(with: "Alpha", predicate: "Equals")
+      filters.filter(:name).fill_in(with: "Alpha", predicate: "Equals")
       filters.submit
       expect(index.table).to have_rows(count: 1)
       expect(names).to eq(["Alpha"])
-      expect(filters.customer_name).to have_value("Alpha", predicate: "Equals")
-      expect(filters.customer_name).to have_value("Alpha", predicate: :eq)
-      expect(filters.customer_name).to have_no_value("Alpha", predicate: "Contains")
-      expect(filters.customer_name.predicate).to eq("Equals")
+      expect(filters.filter(:name)).to have_value("Alpha", predicate: "Equals")
+      expect(filters.filter(:name)).to have_value("Alpha", predicate: :eq)
+      expect(filters.filter(:name)).to have_no_value("Alpha", predicate: "Contains")
+      expect(filters.filter(:name).predicate).to eq("Equals")
     end
 
     it "takes a ransack predicate symbol" do
@@ -230,7 +217,7 @@ RSpec.describe ActiveAdminPageObjects::Filters do
 
     it "raises for an unknown predicate symbol" do
       index.load
-      expect { filters.customer_name.fill_in(with: "x", predicate: :gt) }.to raise_error(ArgumentError, /:gt/)
+      expect { filters.filter(:name).fill_in(with: "x", predicate: :gt) }.to raise_error(ArgumentError, /:gt/)
     end
   end
 
@@ -331,7 +318,7 @@ RSpec.describe ActiveAdminPageObjects::Filters do
 
     it "fills in values, selects and sets ranges without JavaScript" do
       index.load
-      filters.customer_name.fill_in(with: "Alpha", predicate: "Contains")
+      filters.filter(:name).fill_in(with: "Alpha", predicate: "Contains")
       filters.filter(:status).select_option("active")
       filters.filter(:active).set(true)
       filters.filter(:created_at).set("2026-01-01", "2026-12-31")

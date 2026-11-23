@@ -9,8 +9,6 @@ module ActiveAdminPageObjects
   #     filter :email, "Email", ActiveAdminPageObjects::StringFilter
   #     filter :balance, "Balance", ActiveAdminPageObjects::NumericFilter
   #   end
-  #
-  # Each declaration defines a method of its name: `filters.balance`.
   class Filters < Section
     include Declarations
 
@@ -18,11 +16,9 @@ module ActiveAdminPageObjects
 
     class << self
       # Declares the filter +name+ with its +label+ and its section class
-      # +type+, and defines the method +name+ that returns it. +attribute+ is
-      # the key given to ActiveAdmin's `filter`, when it differs from +name+.
-      # @raise [ArgumentError] when the section already has a method +name+
-      def filter(name, label, type, attribute: name)
-        declare_accessor(:filter, name, label, type: type, attribute: attribute)
+      # +type+. +name+ is the key given to ActiveAdmin's `filter`.
+      def filter(name, label, type)
+        declare_typed(:filter, name, label, type: type)
       end
 
       # Filter section class per formtastic input class, shared with subclasses.
@@ -44,7 +40,7 @@ module ActiveAdminPageObjects
     # @return [Filter]
     def filter(name)
       declaration = declaration_for(name)
-      wrapper = find(:css, sel(:filter, declaration ? declaration[:attribute] : slug(name)))
+      wrapper = find(:css, sel(:filter, slug(name)))
       build_declared(name, declaration, filter_class_for(wrapper), wrapper)
     end
 
@@ -88,8 +84,8 @@ module ActiveAdminPageObjects
       Filter
     end
 
-    def declared_label_text(_name, declaration)
-      wrapper_label_text(sel(:filter, declaration[:attribute]))
+    def declared_label_text(name, _declaration)
+      wrapper_label_text(sel(:filter, name))
     end
 
     def page_element_keys
