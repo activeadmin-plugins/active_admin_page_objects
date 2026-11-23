@@ -140,11 +140,12 @@ page_object.flashes.messages(:alert) # one type
 
 ### Main menu
 
-Items are found by their label path, case-insensitively. `go` reads the link's URL and visits it, so it works with closed submenus and under `rack_test`.
+Items are found by their label path, case-insensitively. `go` reads the link's URL and visits it, so it works with closed submenus and under `rack_test`. `click` drives the menu as a user does: it hovers each parent, then clicks the item's link. It sees visible items only, so a hidden or unreachable submenu raises `Capybara::ElementNotFound`. Under `rack_test`, which cannot hover, it skips the hovering.
 
 ```ruby
 page_object.main_menu.go("Customers")
 page_object.main_menu.go("Catalog", "Orders")
+page_object.main_menu.click("Catalog", "Orders")
 expect(page_object.main_menu).to have_item("Catalog", "Categories")
 page_object.main_menu.current_labels # => ["Catalog", "Orders"]
 page_object.main_menu.labels("Catalog") # => ["Categories", "Orders"]
@@ -758,7 +759,7 @@ These need a JavaScript driver such as Cuprite or Selenium:
 - `Comments#delete`: the link asks the browser to confirm.
 - `StringFilter#fill_in` and `NumericFilter#fill_in` with a predicate other than the selected one: the JavaScript renames the input when the predicate changes.
 
-Everything else works with `rack_test` too, including `MainMenu#go`, filters with the current predicate, plain selects, date ranges, scopes, pagination, sorting and forms.
+Everything else works with `rack_test` too, including `MainMenu#go` and `MainMenu#click` (without hovering), filters with the current predicate, plain selects, date ranges, scopes, pagination, sorting and forms.
 
 ## Selectors
 

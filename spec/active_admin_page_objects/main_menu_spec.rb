@@ -46,7 +46,44 @@ RSpec.describe ActiveAdminPageObjects::MainMenu do
 
   it_behaves_like "menu navigation"
 
+  context "when clicking" do
+    before { dashboard.load }
+
+    it "hovers the parent and clicks a nested item" do
+      dashboard.main_menu.click("catalog", "Orders")
+      expect(page).to have_current_path("/admin/orders")
+      expect(dashboard.main_menu.current_labels).to eq(%w[Catalog Orders])
+    end
+
+    it "clicks a top-level item" do
+      dashboard.main_menu.click("Customers")
+      expect(page).to have_current_path("/admin/customers")
+    end
+
+    it "raises for a missing item" do
+      expect { dashboard.main_menu.click("Catalog", "Nope") }.to raise_error(Capybara::ElementNotFound)
+      expect { dashboard.main_menu.click }.to raise_error(ArgumentError)
+    end
+
+    it "raises for a hidden submenu item" do
+      hide("#tabs li li")
+      expect { dashboard.main_menu.click("Catalog", "Orders") }.to raise_error(Capybara::ElementNotFound)
+      expect(page).to have_current_path("/admin/dashboard")
+    end
+
+    it "raises for a hidden top-level item" do
+      hide("#tabs > li")
+      expect { dashboard.main_menu.click("Customers") }.to raise_error(Capybara::ElementNotFound)
+    end
+  end
+
   context "with rack_test", driver: :rack_test do
     it_behaves_like "menu navigation"
+
+    it "clicks a top-level item without hovering" do
+      dashboard.load
+      dashboard.main_menu.click("Customers")
+      expect(page).to have_current_path("/admin/customers")
+    end
   end
 end
