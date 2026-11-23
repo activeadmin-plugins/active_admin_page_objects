@@ -307,6 +307,108 @@ RSpec.describe ActiveAdminPageObjects::Form do
     it_behaves_like "resource form"
   end
 
+  it "has no type registry" do
+    expect(described_class).not_to respond_to(:register_type)
+    expect(described_class).not_to respond_to(:types)
+    expect(described_class).not_to respond_to(:field_class_for)
+    expect { ActiveAdminPageObjects::Fields::FIELD_CLASSES }.to raise_error(NameError, /private constant/)
+  end
+
+  it "returns a Field for a wrapper class the gem has no class for" do
+    form_page.load(action: "new")
+    page.execute_script("document.querySelector('#customer_signed_on_input').className = 'date_select input'")
+    lenient = described_class.new(form_page, form.root_element)
+    expect(lenient.field(:signed_on)).to be_an_instance_of(described_class::Field)
+    expect(form.field(:name)).to be_an_instance_of(described_class::StringField)
+  end
+
+  describe "hidden fields" do
+    let(:string_field) { ActiveAdminPageObjects::Form::StringField }
+
+    before { form_page.load(action: "new") }
+
+    it "leaves a hidden field out by default" do
+      hide("#customer_notes_input")
+      Capybara.using_wait_time(0) do
+        expect { form.field(:notes) }.to raise_error(Capybara::ElementNotFound)
+        expect(form.has_exact_fields?).to be(false)
+        expect(form.has_declared_fields?).to be(false)
+      end
+      expect(form.exact_mismatches).to eq(missing: ["notes"], unexpected: [], labels: {})
+      expect(form.declared_label_mismatches).to eq("notes" => nil)
+      expect(form).to have_exact_fields(except: :notes)
+
+      klass = string_field
+      partial = declared_form { field :email, "Email", klass }
+      expect(partial.exact_mismatches[:unexpected]).to include("name")
+      expect(partial.exact_mismatches[:unexpected]).not_to include("notes")
+    end
+
+    it "takes a hidden field when the query has visible: :all" do
+      hide("#customer_notes_input")
+      expect(form.field(:notes, visible: :all)).to be_an_instance_of(string_field)
+      expect(form).to have_exact_fields(visible: :all)
+      expect(form).to have_declared_fields(visible: :all)
+      expect(form).to have_no_exact_fields(visible: :visible)
+      expect(form.exact_mismatches(visible: :all)).to eq(missing: [], unexpected: [], labels: {})
+      expect(form.declared_label_mismatches(visible: :all)).to eq({})
+
+      klass = string_field
+      partial = declared_form { field :email, "Email", klass }
+      expect(partial.exact_mismatches(visible: :all)[:unexpected]).to include("notes")
+    end
+
+    it "takes a hidden field declared with visible: :all" do
+      hide("#customer_notes_input")
+      klass = string_field
+      declared = declared_form do
+        field :email, "Email", klass
+        field :notes, "Notes", klass, visible: :all
+      end
+      expect(declared.class.declarations["notes"]).to eq(label: "Notes", type: klass, kind: :field, visible: :all)
+      expect(declared.class.declarations["email"]).to eq(label: "Email", type: klass, kind: :field)
+      expect(declared.field(:notes)).to be_an_instance_of(klass)
+      expect(declared).to have_declared_fields
+      expect(declared).to have_exact_fields(only: %i[email notes])
+      expect(declared.exact_mismatches).to include(missing: [], labels: {})
+    end
+
+    it "lets the query override the declared visibility" do
+      hide("#customer_notes_input")
+      klass = string_field
+      declared = declared_form { field :notes, "Notes", klass, visible: :all }
+      Capybara.using_wait_time(0) do
+        expect { declared.field(:notes, visible: :visible) }.to raise_error(Capybara::ElementNotFound)
+        expect(declared.has_declared_fields?(visible: :visible)).to be(false)
+      end
+      expect(declared.declared_label_mismatches(visible: :visible)).to eq("notes" => nil)
+      expect(declared.field(:notes, visible: :hidden)).to be_an_instance_of(klass)
+    end
+
+    it "counts the errors of a hidden field when it is declared or queried with visible: :all" do
+      form.fill(name: "", email: "not-an-email")
+      form.submit
+      expect(form).to have_exact_field_errors(name: "can't be blank", email: "is invalid")
+      hide("#customer_email_input")
+
+      expect(form).to have_exact_field_errors(name: "can't be blank")
+      expect(form).to have_no_field_error(:email)
+      expect(form).to have_field_error(:email, "is invalid", visible: :all)
+      expect(form.has_field_error?(:email, wait: 0)).to be(false)
+      expect(form.has_no_field_error?(:email, visible: :all, wait: 0)).to be(false)
+
+      klass = string_field
+      declared = declared_form do
+        field :name, "Name", klass
+        field :email, "Email", klass, visible: :all
+      end
+      expect(declared).to have_field_error(:email, "is invalid")
+      expect(declared).to have_exact_field_errors(name: "can't be blank", email: "is invalid")
+      expect(declared).to have_no_exact_field_errors(name: "can't be blank")
+      expect(declared).to have_no_field_error(:email, visible: :visible)
+    end
+  end
+
   describe "declared fields" do
     let(:strict_class) do
       Class.new(described_class) do
@@ -357,17 +459,6 @@ RSpec.describe ActiveAdminPageObjects::Form do
         .to eq(label: "Email", type: ActiveAdminPageObjects::Form::StringField, kind: :field)
       expect(strict_class.declarations.keys).to eq(%w[email external_id])
       expect(described_class.declarations).to be_empty
-    end
-  end
-
-  describe ".register_type" do
-    it "registers a section for another input class" do
-      custom = Class.new(described_class::Field)
-      described_class.register_type("date_picker", custom)
-      form_page.load(action: "new")
-      expect(described_class.new(form_page, form.root_element).field(:signed_on)).to be_a(custom)
-    ensure
-      described_class.register_type("date_picker", described_class::DatePickerField)
     end
   end
 end

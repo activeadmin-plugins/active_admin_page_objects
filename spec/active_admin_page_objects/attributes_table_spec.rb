@@ -80,6 +80,68 @@ RSpec.describe ActiveAdminPageObjects::AttributesTable do
     it_behaves_like "attributes table"
   end
 
+  describe "hidden rows" do
+    let(:table) { show.attributes_table }
+
+    before do
+      show.load(id: customer.id)
+      hide('tr[data-row="email"]')
+    end
+
+    it "leaves a hidden row out by default" do
+      Capybara.using_wait_time(0) do
+        expect { table.row(:email) }.to raise_error(Capybara::ElementNotFound)
+        expect { table.value(:email) }.to raise_error(Capybara::ElementNotFound)
+        expect(table.has_row?(:email)).to be(false)
+        expect(table.has_exact_rows?).to be(false)
+        expect(table.has_declared_rows?).to be(false)
+      end
+      expect(table).to have_no_row(:email)
+      expect(table.exact_mismatches).to eq(missing: ["email"], unexpected: [], labels: {})
+      expect(table.declared_label_mismatches).to eq("email" => nil)
+      expect(table).to have_exact_rows(except: :email)
+
+      partial = declared_table { row :name, "Name" }
+      expect(partial.exact_mismatches[:unexpected]).to include("status")
+      expect(partial.exact_mismatches[:unexpected]).not_to include("email")
+    end
+
+    it "takes a hidden row when the query has visible: :all" do
+      expect(table.row(:email, visible: :all)[:"data-row"]).to eq("email")
+      expect(table.value(:email, visible: :all)).to eq(customer.email)
+      expect(table).to have_row(:email, visible: :all, exact_text: customer.email)
+      expect(table).to have_exact_rows(visible: :all)
+      expect(table).to have_declared_rows(visible: :all)
+      expect(table).to have_no_exact_rows(visible: :visible)
+      expect(table.exact_mismatches(visible: :all)).to eq(missing: [], unexpected: [], labels: {})
+
+      partial = declared_table { row :name, "Name" }
+      expect(partial.exact_mismatches(visible: :all)[:unexpected]).to include("email")
+    end
+
+    it "takes a hidden row declared with visible: :all" do
+      hide('tr[data-row="status"]')
+      declared = declared_table do
+        row :name, "Name"
+        row :email, "Email", visible: :all
+        row :status, "Status", visible: :all
+      end
+      expect(declared.class.declarations).to include("name" => { label: "Name" }, "email" => { label: "Email", visible: :all })
+      expect(declared.row(:email)[:"data-row"]).to eq("email")
+      expect(declared.value(:email)).to eq(customer.email)
+      expect(declared.value(:status)).to eq("active")
+      expect(declared).to have_row(:email, exact_text: customer.email)
+      expect(declared).to have_declared_rows
+      expect(declared).to have_exact_rows(only: %i[name email])
+      expect(declared.exact_mismatches).to include(missing: [], labels: {})
+      Capybara.using_wait_time(0) do
+        expect { declared.row(:email, visible: :visible) }.to raise_error(Capybara::ElementNotFound)
+        expect(declared.has_row?(:email, visible: :visible)).to be(false)
+      end
+      expect(declared.declared_label_mismatches(visible: :visible)).to eq("email" => nil, "status" => nil)
+    end
+  end
+
   describe "declared rows" do
     let(:strict_class) do
       Class.new(described_class) do

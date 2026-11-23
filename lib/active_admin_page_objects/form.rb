@@ -15,30 +15,10 @@ module ActiveAdminPageObjects
 
     selector_key :form
 
-    class << self
-      # Field class per formtastic input class, shared with subclasses.
-      # @return [Hash{String => Class}]
-      def types
-        @types ||= superclass.respond_to?(:types) ? superclass.types : {}
-      end
-
-      # Registers +klass+ for wrappers carrying the +input_class+ CSS class.
-      def register_type(input_class, klass)
-        types[input_class.to_s] = klass
-      end
-
-      # The class registered for the wrapper's formtastic class, or Field.
-      # @return [Class]
-      def field_class_for(wrapper)
-        classes = wrapper[:class].to_s.split
-        types.each { |input_class, klass| return klass if classes.include?(input_class) }
-        Field
-      end
-    end
-
     # One `li.input` wrapper of the form. `Form#field` returns the declared
-    # class, or the subclass registered for the wrapper's formtastic class, or
-    # this class.
+    # class, or the gem's subclass for the wrapper's formtastic class, or this
+    # class. The wrapper is visible unless the lookup says otherwise; a control
+    # inside it may be hidden, as a JavaScript select widget hides its `<select>`.
     class Field < Section
       include SelectControl
 
@@ -70,9 +50,10 @@ module ActiveAdminPageObjects
 
       private
 
-      # Each choice of a radio or check_boxes field: its label text and its input.
+      # Each choice of a radio or check_boxes field: its label text and its
+      # input, which a theme may hide to draw its own.
       def choices
-        all(:active_admin, :form_choice, visible: :all, wait: false).map do |label|
+        all(:active_admin, :form_choice, wait: false).map do |label|
           [label.text(:all).strip, label.find("input", visible: :all)]
         end
       end
@@ -117,21 +98,26 @@ module ActiveAdminPageObjects
       all(:active_admin, :form_semantic_error, wait: false).map { |el| el.text.strip }
     end
 
+    # The base errors the last `has_exact_semantic_errors?` or
+    # `has_no_exact_semantic_errors?` call found on its last try, in page
+    # order, or nil before the first call. The RSpec matchers build their
+    # failure message from it.
+    # @return [Array<String>, nil]
+    attr_reader :last_semantic_errors
+
     private
 
     # Formtastic ids inputs `<object_name>_<attribute>_input`; the object name
-    # is the prefix of the first namespaced field name.
+    # is the prefix of the first namespaced field name. That control may be
+    # hidden: a hidden input, or the `<select>` of a JavaScript select widget.
     def field_prefix
       field = find("input[name*='['], select[name*='['], textarea[name*='[']", match: :first, visible: :all)
       field[:name][/\A[^\[]+/]
     end
 
-    def detected_field_class(wrapper)
-      self.class.field_class_for(wrapper)
-    end
-
     def exact_semantic_errors?(messages, strict_order)
       actual, expected = [semantic_errors, messages].map { |texts| texts.map { |text| squish(text) } }
+      @last_semantic_errors = actual
       strict_order ? actual == expected : actual.sort == expected.sort
     end
   end

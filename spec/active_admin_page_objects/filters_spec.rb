@@ -168,13 +168,71 @@ RSpec.describe ActiveAdminPageObjects::Filters do
     expect(filters.filter(:name).label).to eq("Name")
   end
 
-  it "registers a section for another input class" do
-    custom = Class.new(ActiveAdminPageObjects::Filter)
-    described_class.register_type("date_range", custom)
+  it "has no type registry" do
+    expect(described_class).not_to respond_to(:register_type)
+    expect(described_class).not_to respond_to(:types)
+    expect { described_class::FILTER_CLASSES }.to raise_error(NameError, /private constant/)
+  end
+
+  it "returns a Filter for a wrapper class the gem has no class for" do
     index.load
-    expect(described_class.new(index, filters.root_element).filter(:created_at)).to be_a(custom)
-  ensure
-    described_class.register_type("date_range", ActiveAdminPageObjects::DateRangeFilter)
+    page.execute_script("document.querySelector('#q_created_at_input').className = 'date_time_picker input filters-form-field'")
+    expect(described_class.new(index, filters.root_element).filter(:created_at))
+      .to be_an_instance_of(ActiveAdminPageObjects::Filter)
+  end
+
+  describe "hidden filters" do
+    let(:string_filter) { ActiveAdminPageObjects::StringFilter }
+
+    before do
+      index.load
+      hide("#q_email_input")
+    end
+
+    it "leaves a hidden filter out by default" do
+      Capybara.using_wait_time(0) do
+        expect { filters.filter(:email) }.to raise_error(Capybara::ElementNotFound)
+        expect(filters.has_exact_filters?).to be(false)
+        expect(filters.has_declared_filters?).to be(false)
+      end
+      expect(filters.exact_mismatches).to eq(missing: ["email"], unexpected: [], labels: {})
+      expect(filters.declared_label_mismatches).to eq("email" => nil)
+      expect(filters).to have_exact_filters(except: :email)
+
+      klass = string_filter
+      partial = declared_filters { filter :name, "Name", klass }
+      expect(partial.exact_mismatches[:unexpected]).to include("external_id")
+      expect(partial.exact_mismatches[:unexpected]).not_to include("email")
+    end
+
+    it "takes a hidden filter when the query has visible: :all" do
+      expect(filters.filter(:email, visible: :all)).to be_an_instance_of(string_filter)
+      expect(filters).to have_exact_filters(visible: :all)
+      expect(filters).to have_declared_filters(visible: :all)
+      expect(filters).to have_no_declared_filters(visible: :visible)
+      expect(filters.exact_mismatches(visible: :all)).to eq(missing: [], unexpected: [], labels: {})
+
+      klass = string_filter
+      partial = declared_filters { filter :name, "Name", klass }
+      expect(partial.exact_mismatches(visible: :all)[:unexpected]).to include("email")
+    end
+
+    it "takes a hidden filter declared with visible: :all" do
+      klass = string_filter
+      declared = declared_filters do
+        filter :name, "Name", klass
+        filter :email, "Email", klass, visible: :all
+      end
+      expect(declared.class.declarations["email"]).to eq(label: "Email", type: klass, kind: :filter, visible: :all)
+      expect(declared.filter(:email)).to be_an_instance_of(klass)
+      expect(declared).to have_declared_filters
+      expect(declared).to have_exact_filters(only: %i[name email])
+      expect(declared.exact_mismatches).to include(missing: [], labels: {})
+      Capybara.using_wait_time(0) do
+        expect { declared.filter(:email, visible: :visible) }.to raise_error(Capybara::ElementNotFound)
+      end
+      expect(declared.declared_label_mismatches(visible: :visible)).to eq("email" => nil)
+    end
   end
 
   describe ActiveAdminPageObjects::StringFilter do

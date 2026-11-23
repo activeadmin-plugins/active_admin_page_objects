@@ -137,6 +137,76 @@ RSpec.describe ActiveAdminPageObjects::Table do
     expect { table.has_no_header_names? }.to raise_error(ArgumentError, /no header names given/)
   end
 
+  describe "hidden columns" do
+    let(:customer) { customers.first }
+
+    before do
+      index.load
+      hide('[data-column="email"]')
+    end
+
+    it "leaves a hidden column out by default" do
+      row = table.row(customer.id)
+      Capybara.using_wait_time(0) do
+        expect { row.cell(:email) }.to raise_error(Capybara::ElementNotFound)
+        expect(row.has_cell?(:email)).to be(false)
+        expect(table.has_exact_columns?(except: :notes)).to be(false)
+        expect(table.has_declared_columns?(except: :notes)).to be(false)
+      end
+      expect(row).to have_no_cell(:email)
+      expect(table.exact_mismatches(except: :notes)).to eq(missing: ["email"], unexpected: [], labels: {})
+      expect(table).to have_exact_columns(except: %i[email notes])
+
+      partial = declared_table { column :name, "Name" }
+      expect(partial.exact_mismatches[:unexpected]).to include("status")
+      expect(partial.exact_mismatches[:unexpected]).not_to include("email")
+    end
+
+    it "takes a hidden column when the query has visible: :all" do
+      row = table.row(customer.id)
+      expect(row.cell(:email, visible: :all).text(:all)).to eq(customer.email)
+      expect(row).to have_cell(:email, visible: :all, exact_text: customer.email)
+      expect(table).to have_exact_columns(except: :notes, visible: :all)
+      expect(table).to have_declared_columns(except: :notes, visible: :all)
+      expect(table).to have_no_exact_columns(except: :notes, visible: :visible)
+
+      partial = declared_table { column :name, "Name" }
+      expect(partial.exact_mismatches(visible: :all)[:unexpected]).to include("email")
+    end
+
+    it "takes a hidden column declared with visible: :all" do
+      hide('[data-column="status"]')
+      declared = declared_table do
+        column :name, "Name"
+        column :email, "Email", visible: :all
+        column :status, "Status", visible: :all
+      end
+      expect(declared.class.declarations).to include("name" => { label: "Name" }, "email" => { label: "Email", visible: :all })
+      row = declared.row(customer.id)
+      expect(row.cell(:email).text(:all)).to eq(customer.email)
+      expect(row).to have_cell(:email, exact_text: customer.email)
+      expect(declared).to have_declared_columns
+      expect(declared).to have_exact_columns(only: %i[name email])
+      expect(declared.exact_mismatches).to include(missing: [], labels: {})
+      Capybara.using_wait_time(0) do
+        expect { row.cell(:email, visible: :visible) }.to raise_error(Capybara::ElementNotFound)
+        expect(row.has_cell?(:email, visible: :visible)).to be(false)
+      end
+      expect(declared.declared_label_mismatches(visible: :visible)).to eq("email" => nil, "status" => nil)
+    end
+
+    it "leaves a hidden selection or actions column out by default" do
+      hide("thead th:first-child, thead th:last-child")
+      expect(table.exact_mismatches(except: %i[email notes])).to eq(missing: %w[selectable actions], unexpected: [], labels: {})
+      expect(table).to have_exact_columns(except: :notes, visible: :all)
+
+      partial = declared_table { column :name, "Name" }
+      expect(partial.exact_mismatches[:unexpected]).not_to include("selectable", "actions")
+      expect(partial.exact_mismatches(visible: :all)[:unexpected]).to include("selectable", "actions")
+      expect(declared_table { column :actions, "", visible: :all }).to have_declared_columns
+    end
+  end
+
   describe "declared columns" do
     let(:strict_class) do
       Class.new(described_class) do

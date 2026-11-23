@@ -6,8 +6,6 @@ module ActiveAdminPageObjects
   class SelectFilter < Filter
     include SelectControl
 
-    Filters.register_type("select", self)
-
     # Chooses the option labelled +label+.
     def select_option(label)
       choose_option(root_element, label)

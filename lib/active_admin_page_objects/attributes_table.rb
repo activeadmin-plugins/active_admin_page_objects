@@ -15,53 +15,56 @@ module ActiveAdminPageObjects
     selector_key :attributes_table
 
     class << self
-      # Declares row +key+ with the +label+ of its header cell.
-      def row(key, label)
-        declare(key, label)
+      # Declares row +key+ with the +label+ of its header cell. +visible+ is
+      # the Capybara option the row is found with.
+      def row(key, label, visible: nil)
+        declare(key, label, visible: visible)
       end
     end
 
     # True when row +key+ has a value cell matching the Capybara options.
     def has_row?(key, **options)
-      has_css?(cell_selector(key), **options)
+      has_css?(cell_selector(key), **visibility_of(key), **options)
     end
 
     # Waits until row +key+ has no value cell matching the Capybara options.
     def has_no_row?(key, **options)
-      has_no_css?(cell_selector(key), **options)
+      has_no_css?(cell_selector(key), **visibility_of(key), **options)
     end
 
-    # The `<tr>` of row +key+.
+    # The `<tr>` of row +key+. A hidden row is found with `visible: :all`.
     # @return [Capybara::Node::Element]
-    def row(key)
-      find(:css, row_selector(key))
+    def row(key, visible: nil)
+      find(:css, row_selector(key), **visibility_of(key, visible))
     end
 
-    # The value text of row +key+.
+    # The value text of row +key+: the DOM text when the lookup takes hidden rows.
     # @return [String]
-    def value(key)
-      find(:css, cell_selector(key)).text.strip
+    def value(key, visible: nil)
+      visibility = visibility_of(key, visible)
+      text_of(find(:css, cell_selector(key), **visibility), visibility).strip
     end
 
     # True when every declared row in scope has exactly its declared label.
-    # +only+ and +except+ take declared keys.
-    def has_declared_rows?(only: nil, except: nil, **options)
-      declared_match?(true, exact: false, only: only, except: except, **options)
+    # +only+ and +except+ take declared keys. +visible+ is Capybara's option,
+    # for every row.
+    def has_declared_rows?(only: nil, except: nil, visible: nil, **options)
+      declared_match?(true, exact: false, only: only, except: except, visible: visible, **options)
     end
 
     # Waits until a declared row in scope has another label, or is missing.
-    def has_no_declared_rows?(only: nil, except: nil, **options)
-      declared_match?(false, exact: false, only: only, except: except, **options)
+    def has_no_declared_rows?(only: nil, except: nil, visible: nil, **options)
+      declared_match?(false, exact: false, only: only, except: except, visible: visible, **options)
     end
 
     # Like #has_declared_rows?, and the table has no row that is not declared.
-    def has_exact_rows?(only: nil, except: nil, **options)
-      declared_match?(true, exact: true, only: only, except: except, **options)
+    def has_exact_rows?(only: nil, except: nil, visible: nil, **options)
+      declared_match?(true, exact: true, only: only, except: except, visible: visible, **options)
     end
 
     # Waits until the rows differ from the declared ones.
-    def has_no_exact_rows?(only: nil, except: nil, **options)
-      declared_match?(false, exact: true, only: only, except: except, **options)
+    def has_no_exact_rows?(only: nil, except: nil, visible: nil, **options)
+      declared_match?(false, exact: true, only: only, except: except, visible: visible, **options)
     end
 
     private
@@ -75,13 +78,13 @@ module ActiveAdminPageObjects
       "#{row_selector(key)} > td"
     end
 
-    def declared_label_text(key, _declaration)
-      label_text("#{sel(:attributes_table_row, key)} > th")
+    def declared_label_text(key, _declaration, **visibility)
+      label_text("#{sel(:attributes_table_row, key)} > th", **visibility)
     end
 
     # A row without a title has no `data-row` and no key.
-    def page_element_keys
-      all(:css, sel(:attributes_table_rows), visible: :all, wait: false).map { |row| row[:"data-row"].to_s }
+    def page_element_keys(**visibility)
+      all(:css, sel(:attributes_table_rows), wait: false, **visibility).map { |row| row[:"data-row"].to_s }
     end
   end
 end

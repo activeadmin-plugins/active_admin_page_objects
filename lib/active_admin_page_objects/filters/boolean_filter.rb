@@ -5,8 +5,6 @@ require_relative "select_filter"
 module ActiveAdminPageObjects
   # A boolean filter: a select of "Any", "Yes" and "No".
   class BooleanFilter < SelectFilter
-    Filters.register_type("boolean", self)
-
     # Selects `true`, `false`, or `nil` for "Any".
     def set(value)
       select_option(option_label(value))

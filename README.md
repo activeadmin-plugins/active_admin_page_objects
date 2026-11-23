@@ -175,7 +175,7 @@ show.notes.links # => [{ text: "Invoices", href: "/admin/invoices?customer=1" }]
 
 ### Filters
 
-`filter(key)` returns the section typed by the filter input: `StringFilter`, `NumericFilter`, `SelectFilter`, `BooleanFilter` or `DateRangeFilter`. The key is the one given to `filter :key`; the section wraps `#q_<key>_input`. Filters that [declare their filters](#declared-labels) take the declared name and have a method per filter: `filters.balance`.
+`filter(key)` returns the section typed by the filter input: `StringFilter`, `NumericFilter`, `SelectFilter`, `BooleanFilter` or `DateRangeFilter`. The key is the one given to `filter :key`; the section wraps `#q_<key>_input`. Filters that [declare their filters](#declared-labels) take the declared name.
 
 ```ruby
 filters = index.filters
@@ -294,7 +294,7 @@ form.semantic_errors # => ["Name is reserved", "Balance is negative"]
 ```
 
 - `have_field_errors` and `have_no_field_errors` look at the whole form.
-- `have_exact_field_errors` takes each field with its message, or an array of messages. Every one of these fields shows exactly these messages, and no other field shows an error. Without arguments it passes when no field shows an error. Its keywords are field names, so it takes no Capybara options.
+- `have_exact_field_errors` takes each field with its message, or an array of messages. Every one of these fields shows exactly these messages, and no other field shows an error. Without arguments it passes when no field shows an error. Its keywords are field names, so it takes no Capybara options and no `visible:`. See [Hidden elements](#hidden-elements).
 - `have_exact_semantic_errors` compares the base errors exactly and case-sensitively: the same messages, in any order. `strict_order: true` compares the order too. Without messages it passes when the form shows no base error.
 - `have_no_exact_field_errors` and `have_no_exact_semantic_errors` wait until the errors differ.
 
@@ -348,6 +348,7 @@ expect(form_page.form).to have_exact_fields
 
 - `row(key, label)` and `column(key, label)` need the label. An untitled column takes `""`: the selection column is `:selectable` and the actions column is `:actions`.
 - `filter(name, label, type)` and `field(name, label, type)` need the label and the section class.
+- Each takes `visible:` for an element that may be hidden: see [Hidden elements](#hidden-elements).
 
 SitePrism 5 and 6 turn the block into a subclass of the section class. A named subclass takes the same lines in its class body. A subclass inherits the declarations of its superclass and adds its own.
 
@@ -366,9 +367,21 @@ For shortcuts, write your own methods in the section block.
 
 ### Declared types
 
-`filters.filter(name)` and `form.field(name)` return an instance of the declared class. An app can declare its own subclass, such as a `MySelectField < ActiveAdminPageObjects::Form::SelectField`.
+`filters.filter(name)` and `form.field(name)` return an instance of the declared class. To use your own field or filter class, declare it. It is a subclass of the gem's class for that input:
 
-The declared class must be the class the gem detects for the wrapper, or a subclass of it. Otherwise the lookup raises `Capybara::ExpectationNotMet`, and the message names both classes. A section without declarations returns the detected class.
+```ruby
+class MySelectField < ActiveAdminPageObjects::Form::SelectField
+  # ...
+end
+
+section :form, ActiveAdminPageObjects::Form do
+  field :status, "Status", MySelectField
+end
+```
+
+The declared class must be the class the gem detects for the wrapper, or a subclass of it. Otherwise the lookup raises `Capybara::ExpectationNotMet`, and the message names both classes.
+
+The gem detects its own classes by the formtastic class of the wrapper, and `Form::Field` or `Filter` for any other input. That list is fixed: there is no registry to add to. A section without declarations returns the detected class.
 
 ### Label matchers
 
@@ -387,9 +400,11 @@ The declared class must be the class the gem detects for the wrapper, or a subcl
 - Rows: the `tr[data-row]` of the attributes table.
 - Columns: the `th[data-column]` of the table, and the untitled selection and actions columns.
 - Filters: the filter wrappers of the filter form.
-- Form fields: the input wrappers of the form. Hidden inputs are not fields.
+- Form fields: the input wrappers of the form. `as: :hidden` inputs are not fields.
 
 ActiveAdmin 4 writes no `data-column` on an untitled column. The selection column is the one whose header holds the toggle-all checkbox, and the actions column is the one whose cells hold the row actions. Any other untitled column has no key, so the matchers leave it out.
+
+Only visible elements count: see [Hidden elements](#hidden-elements).
 
 `have_no_exact_columns` and the other three wait until the page differs.
 
@@ -405,9 +420,100 @@ expect(form_page.form).to have_declared_fields(only: %i[email status])
 - `only:` checks these elements and ignores the rest of the page, so no element is unexpected.
 - `except:` skips these elements: the page may have them or not.
 
+### Hidden elements
+
+Lookups and matchers see only visible elements, as Capybara does by default. A hidden field, filter, row or column is not found. The label matchers report it as missing, and the exact matchers do not count it as unexpected.
+
+Pass `visible: :all` to a call to take hidden elements too:
+
+```ruby
+form.field(:notes, visible: :all)
+filters.filter(:email, visible: :all)
+show.attributes_table.row(:email, visible: :all)
+show.attributes_table.value(:email, visible: :all)
+index.table.row(customer.id).cell(:email, visible: :all)
+expect(form).to have_field_error(:email, "is invalid", visible: :all)
+expect(form).to have_exact_fields(visible: :all)
+form.exact_mismatches(visible: :all)
+```
+
+Or declare the element with `visible: :all`, for example a field that a script hides and shows:
+
+```ruby
+section :form, ActiveAdminPageObjects::Form do
+  field :email, "Email", ActiveAdminPageObjects::Form::StringField
+  field :notes, "Notes", ActiveAdminPageObjects::Form::StringField, visible: :all
+end
+
+form.field(:notes) # found when it is hidden too
+expect(form).to have_exact_fields # passes with the notes field hidden or shown
+```
+
+- `row`, `column`, `filter` and `field` take `visible:`. Every lookup and matcher then finds that element with it.
+- `visible:` on a call overrides the declaration: `form.field(:notes, visible: :visible)`. It takes Capybara's values: `:all`, `:hidden`, `:visible`, `true` and `false`.
+- On a matcher, `visible:` applies to every element: the declared ones and the ones that are not declared.
+- `have_exact_field_errors` has no `visible:` option, because its keywords are field names. It counts the errors of the visible fields and of the fields declared with `visible:`.
+- `value(key, visible: :all)` returns the DOM text: a hidden cell has no visible text.
+- `visible:` finds the element itself. A section still looks for its own controls as Capybara does by default, so `fill` and `value` of a hidden text field raise `Capybara::ElementNotFound`.
+- The `<select>` inside a visible field or filter may be hidden, as a JavaScript select widget hides it. The gem finds it either way.
+
+### Failure messages
+
+RSpec's own `have_` matcher only reports that the predicate returned false. Include `ActiveAdminPageObjects::RSpec::Matchers` to get a message that lists what differs:
+
+```ruby
+require "active_admin_page_objects/rspec"
+
+RSpec.configure do |config|
+  config.include ActiveAdminPageObjects::RSpec::Matchers
+end
+
+expect(show.attributes_table).to have_exact_rows(except: :notes)
+```
+
+```
+expected exactly the declared rows (except: notes), but:
+  missing: secret
+  unexpected: email, status
+  label of external_id: expected "External id", got "External ID"
+```
+
+- The module defines `have_declared_rows`, `have_declared_columns`, `have_declared_filters`, `have_declared_fields`, `have_exact_rows`, `have_exact_columns`, `have_exact_filters`, `have_exact_fields` and the `have_no_` form of each. They call the same predicates with the same options, so specs need no change.
+- `missing` lists the declared names the page lacks. `unexpected` lists the elements on the page that are not declared; only the exact matchers have it. Each `label of` line gives the declared label and the label found.
+- The message names the `only:`, `except:` and `visible:` options given.
+- A `have_no_` matcher that fails has nothing to list: `expected the rows to differ from the declared ones, but they match exactly`.
+- `not_to have_exact_rows` calls `has_no_exact_rows?`, so it waits for the page to differ.
+- On an object that declares nothing, each one is RSpec's predicate matcher.
+
+The module also defines `have_exact_field_errors`, `have_exact_semantic_errors` and their `have_no_` forms, for a form:
+
+```ruby
+expect(form).to have_exact_field_errors(name: "is reserved", notes: "is too long")
+expect(form).to have_exact_semantic_errors("Balance is negative", "Name is reserved", strict_order: true)
+```
+
+```
+expected exactly the given field errors, but:
+  name: missing "is reserved"; unexpected "can't be blank"
+  notes: missing "is too long"
+  email: unexpected "is invalid"
+```
+
+```
+expected exactly the given semantic errors, in order, but:
+  order: expected "Balance is negative", "Name is reserved", got "Name is reserved", "Balance is negative"
+```
+
+- Field errors have one line per field that differs. `missing` lists the expected messages the field does not show. `unexpected` lists the messages it shows that were not expected. A field that was not expected has only `unexpected`.
+- Semantic errors have a `missing` and an `unexpected` line. With `strict_order: true` and the same messages in another order, the `order` line gives both orders.
+- Without arguments the message starts with `expected no field errors` or `expected no semantic errors`.
+- A `have_no_` matcher that fails says that the errors match exactly, or that the form shows no error when no arguments were given.
+
+The module also defines the [matchers shared with capybara_active_admin](#matchers-shared-with-capybara_active_admin). Include it after that gem's matchers.
+
 ### Mismatches
 
-When a matcher fails, ask the section what differs:
+Without the module, ask the section what differs:
 
 ```ruby
 index.table.declared_label_mismatches # => { "external_id" => "External Id", "secret" => nil }
@@ -415,7 +521,9 @@ index.table.exact_mismatches
 # => { missing: ["secret"], unexpected: ["email"], labels: { "external_id" => "External Id" } }
 ```
 
-`declared_label_mismatches` returns each failing name with the label found, or `nil` when the page has no such element. `exact_mismatches` splits them into `missing` and `labels`, and adds `unexpected`: the keys of the elements on the page that are not declared. Both take `only:` and `except:`.
+`declared_label_mismatches` returns each failing name with the label found, or `nil` when the page has no such element. `exact_mismatches` splits them into `missing` and `labels`, and adds `unexpected`: the keys of the elements on the page that are not declared. Both take `only:`, `except:` and `visible:`.
+
+`last_mismatches` returns what the last label or exact matcher found on its last try, in the form of `exact_mismatches`. `last_field_errors` and `last_semantic_errors` return the errors the last `have_exact_field_errors` or `have_exact_semantic_errors` found.
 
 ### Strict names
 
@@ -434,7 +542,7 @@ Names compare as everywhere else: `:external_id`, `"external_id"` and `"External
 
 [capybara_active_admin](https://github.com/activeadmin-plugins/capybara_active_admin) defines RSpec matchers for Capybara's `page`, such as `have_page_title`, `have_table` and `have_semantic_errors`. In an example group that includes them, they replace the predicate matchers of the page objects: `expect(index).to have_page_title(text: "Customers")` calls the matcher of that gem.
 
-`ActiveAdminPageObjects::RSpec::Matchers` defines the same names for both. Include it after capybara_active_admin's matchers, so it takes precedence:
+`ActiveAdminPageObjects::RSpec::Matchers` defines the same names for both. Include it after capybara_active_admin's matchers, so it takes precedence. The module also gives the label and exact matchers their [failure messages](#failure-messages).
 
 ```ruby
 require "capybara/active_admin/rspec" # includes that gem's matchers
@@ -499,7 +607,7 @@ ActiveAdminPageObjects::Layout.add_section(:audit_panel, AuditPanel)
 ActiveAdminPageObjects::Layout.add_element(:banner, ".banner")
 ```
 
-Register a section for a custom filter input class with `ActiveAdminPageObjects::Filters.register_type("my_input", MyFilter)`, and for a custom form input class with `ActiveAdminPageObjects::Form.register_type("my_input", MyField)`. `MyField` subclasses `ActiveAdminPageObjects::Form::Field`.
+To use your own field or filter class, declare it on the section: `field :status, "Status", MySelectField`. It is a subclass of the gem's class for that input, or of `ActiveAdminPageObjects::Form::Field` or `ActiveAdminPageObjects::Filter` for an input class the gem has no class for. See [Declared types](#declared-types).
 
 ### Select widgets
 

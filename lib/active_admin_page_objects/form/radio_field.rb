@@ -4,8 +4,6 @@ module ActiveAdminPageObjects
   class Form
     # A radio field. `fill` picks a radio button by its label.
     class RadioField < Field
-      Form.register_type("radio", self)
-
       # Picks the radio button labelled +option+.
       def fill(option)
         root_element.choose(option.to_s)
