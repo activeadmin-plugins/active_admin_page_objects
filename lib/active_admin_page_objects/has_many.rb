@@ -2,8 +2,7 @@
 
 module ActiveAdminPageObjects
   # A `has_many` block of a resource form, with the fieldsets of its nested
-  # records. Reached with `form.has_many(:orders)`, or with `form.orders` when
-  # the form declares `has_many :orders, "Orders"`.
+  # records. Reached with `form.has_many(:orders)`.
   class HasMany < Section
     selector_key :has_many
 
@@ -47,6 +46,7 @@ module ActiveAdminPageObjects
 
       # Formtastic ids a field `<name with [] turned into _>`, so the prefix of
       # `customer[orders_attributes][0][reference]` is `customer_orders_attributes_0`.
+      # That control may be hidden, as the `<select>` of a JavaScript select widget is.
       def field_prefix
         field = find("input[name*='['], select[name*='['], textarea[name*='[']", match: :first, visible: :all)
         field[:name].sub(/\[[^\]]*\]\z/, "").tr("[", "_").delete("]")

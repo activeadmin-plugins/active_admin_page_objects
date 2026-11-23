@@ -11,10 +11,11 @@ module ActiveAdminPageObjects
       private
 
       # Waits until the cell +cell_css+ has (+expected+ true) or lacks a
-      # status tag with +label+ and +type+.
+      # status tag with +label+ and +type+. +visible+ is Capybara's option.
       def status_tag_match?(expected, cell_css, label, type, **options)
+        visibility = Declarations.visibility(nil, options.delete(:visible))
         eventually(**options) do
-          node = first(:css, "#{cell_css} #{sel(:status_tag)}", minimum: 0, wait: false)
+          node = first(:css, "#{cell_css} #{sel(:status_tag)}", minimum: 0, wait: false, **visibility)
           (!node.nil? && StatusTag.new(self, node).match?(label, type: type)) == expected
         end
       end

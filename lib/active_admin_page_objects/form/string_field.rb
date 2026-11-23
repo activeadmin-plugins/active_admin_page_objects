@@ -4,8 +4,6 @@ module ActiveAdminPageObjects
   class Form
     # A text field: string, email, url, phone, password, number or text.
     class StringField < Field
-      %w[string email url phone password number text].each { |input_class| Form.register_type(input_class, self) }
-
       # Types +value+ into the input.
       def fill(value)
         input.set(value)

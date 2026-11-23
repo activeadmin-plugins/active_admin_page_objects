@@ -6,6 +6,5 @@ module ActiveAdminPageObjects
   # A numeric filter: predicate ("Equals", "Greater than", "Less than") and a
   # number input.
   class NumericFilter < PredicateFilter
-    Filters.register_type("numeric", self)
   end
 end

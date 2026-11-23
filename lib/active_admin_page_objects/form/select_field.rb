@@ -4,8 +4,6 @@ module ActiveAdminPageObjects
   class Form
     # A select field. `fill` picks an option by its text.
     class SelectField < Field
-      Form.register_type("select", self)
-
       # Picks the option labelled +label+.
       def fill(label)
         choose_option(root_element, label.to_s)

@@ -4,18 +4,24 @@ require "rspec/expectations"
 require "active_admin_page_objects"
 
 module ActiveAdminPageObjects
-  # Lets page objects and capybara_active_admin share the matcher names that
-  # gem defines. Include it after that gem's matchers, so it takes precedence:
+  # RSpec matchers for the page objects. Include the module after
+  # capybara_active_admin's matchers, when the suite uses that gem, so it takes
+  # precedence:
   #
   #   RSpec.configure do |config|
   #     config.include Capybara::ActiveAdmin::TestHelpers, type: :system
   #     config.include ActiveAdminPageObjects::RSpec::Matchers
   #   end
   module RSpec
-    # `have_<name>` for every matcher capybara_active_admin 1.0.0 defines. On a
-    # SitePrism page or section that has the predicate, it is RSpec's predicate
-    # matcher: `expect(index).to have_page_title(text: "Customers")`. On
-    # anything else it is the matcher of the module included before this one.
+    # `have_declared_rows`, `have_exact_fields`, `have_exact_field_errors` and
+    # the like, with a failure message that lists what differs: see
+    # DeclaredMatcher, FieldErrorsMatcher and SemanticErrorsMatcher.
+    #
+    # And `have_<name>` for every matcher capybara_active_admin 1.0.0 defines,
+    # so page objects and that gem share the names. On a SitePrism page or
+    # section that has the predicate, it is RSpec's predicate matcher:
+    # `expect(index).to have_page_title(text: "Customers")`. On anything else
+    # it is the matcher of the module included before this one.
     module Matchers
       NAMES = %i[
         have_action_item have_action_item_link have_attribute_row have_attributes_table have_batch_action
@@ -31,6 +37,247 @@ module ActiveAdminPageObjects
           other = defined?(super) ? -> { super(*args, **options, &block) } : nil
           Matcher.new(name, other, *args, **options, &block)
         end
+      end
+
+      DECLARED_NAMES = %i[
+        have_declared_rows have_declared_columns have_declared_filters have_declared_fields
+        have_exact_rows have_exact_columns have_exact_filters have_exact_fields
+        have_no_declared_rows have_no_declared_columns have_no_declared_filters have_no_declared_fields
+        have_no_exact_rows have_no_exact_columns have_no_exact_filters have_no_exact_fields
+      ].freeze
+
+      DECLARED_NAMES.each do |name|
+        define_method(name) { |*args, **options, &block| DeclaredMatcher.new(name, *args, **options, &block) }
+      end
+
+      ERROR_MATCHERS = {
+        have_exact_field_errors: :FieldErrorsMatcher,
+        have_no_exact_field_errors: :FieldErrorsMatcher,
+        have_exact_semantic_errors: :SemanticErrorsMatcher,
+        have_no_exact_semantic_errors: :SemanticErrorsMatcher
+      }.freeze
+
+      ERROR_MATCHERS.each do |name, matcher|
+        define_method(name) { |*args, **options, &block| RSpec.const_get(matcher).new(name, *args, **options, &block) }
+      end
+    end
+
+    # Base of the matchers with a detailed failure message. It asks the
+    # section the predicate of the same name, as RSpec's predicate matcher
+    # does, and a subclass describes what the predicate found. On an object
+    # that is not such a section it is RSpec's predicate matcher.
+    class DetailedMatcher
+      include ::RSpec::Matchers::Composable
+
+      def initialize(name, *args, **options, &block)
+        @name = name
+        @args = args
+        @options = options
+        @block = block
+      end
+
+      def matches?(actual)
+        return predicate_matcher.matches?(actual) unless detailed?(actual)
+
+        ask(actual, @name)
+      end
+
+      # Asks the opposite predicate, which waits: `not_to have_exact_rows` asks `has_no_exact_rows?`.
+      def does_not_match?(actual)
+        return predicate_matcher.does_not_match?(actual) unless detailed?(actual)
+
+        ask(actual, opposite)
+      end
+
+      def failure_message
+        @predicate_matcher ? @predicate_matcher.failure_message : message
+      end
+
+      def failure_message_when_negated
+        @predicate_matcher ? @predicate_matcher.failure_message_when_negated : message
+      end
+
+      def description
+        ::RSpec::Matchers::BuiltIn::Has.new(@name, *@args, **@options, &@block).description
+      end
+
+      private
+
+      def detailed?(actual)
+        actual.is_a?(self.class::SECTION) && actual.respond_to?(predicate(@name))
+      end
+
+      def predicate(name)
+        :"#{name.to_s.sub('have_', 'has_')}?"
+      end
+
+      def opposite
+        negative?(@name) ? @name.to_s.sub("have_no_", "have_").to_sym : @name.to_s.sub("have_", "have_no_").to_sym
+      end
+
+      def negative?(name)
+        name.start_with?("have_no_")
+      end
+
+      def predicate_matcher
+        @predicate_matcher = ::RSpec::Matchers::BuiltIn::Has.new(@name, *@args, **@options, &@block)
+      end
+
+      # Keeps what the predicate found: a later call on the section replaces it.
+      def ask(actual, name)
+        @asked = name
+        result = actual.public_send(predicate(name), *@args, **@options, &@block)
+        record(actual)
+        result
+      end
+
+      def message
+        negative?(@asked) ? negative_message : positive_message
+      end
+
+      def quoted(texts)
+        texts.map(&:inspect).join(", ")
+      end
+
+      # The items of +list+ that +other+ lacks, counting repeated items.
+      def lacking(list, other)
+        other = other.dup
+        list.reject { |item| (index = other.index(item)) && other.delete_at(index) }
+      end
+    end
+
+    # `have_exact_rows`, `have_no_declared_fields` and the like. Its failure
+    # message lists the missing and the unexpected elements and the labels
+    # that differ.
+    class DeclaredMatcher < DetailedMatcher
+      SECTION = Declarations
+      SCOPE_OPTIONS = %i[only except visible].freeze
+
+      def description
+        "#{@name.to_s.tr('_', ' ')}#{scope}"
+      end
+
+      private
+
+      def record(actual)
+        @declarations = actual.class.declarations
+        @mismatches = actual.last_mismatches
+      end
+
+      def exact?
+        @asked.to_s.include?("_exact_")
+      end
+
+      def kind
+        @asked.to_s.split("_").last
+      end
+
+      def positive_message
+        expected = exact? ? "exactly the declared #{kind}" : "the declared #{kind}"
+        "expected #{expected}#{scope}, but:\n#{differences.join("\n")}"
+      end
+
+      def negative_message
+        return "expected the #{kind} to differ from the declared ones#{scope}, but they match exactly" if exact?
+
+        "expected a declared #{kind.delete_suffix('s')} to be missing or to have another label#{scope}, but every one matches"
+      end
+
+      def differences
+        lines = %i[missing unexpected].filter_map do |key|
+          "  #{key}: #{@mismatches[key].join(', ')}" unless @mismatches[key].empty?
+        end
+        lines + @mismatches[:labels].map do |name, found|
+          "  label of #{name}: expected #{@declarations[name][:label].inspect}, got #{found.inspect}"
+        end
+      end
+
+      # The options that narrow the comparison, e.g. " (only: name, email)".
+      def scope
+        given = SCOPE_OPTIONS.select { |option| @options.key?(option) }
+        return "" if given.empty?
+
+        " (#{given.map { |option| "#{option}: #{Array(@options[option]).join(', ')}" }.join('; ')})"
+      end
+    end
+
+    # `have_exact_field_errors` and `have_no_exact_field_errors`. Its failure
+    # message lists, per field, the messages that are missing and the ones
+    # that were not expected.
+    class FieldErrorsMatcher < DetailedMatcher
+      SECTION = Fields
+
+      private
+
+      def record(actual)
+        @shown = actual.last_field_errors
+      end
+
+      # Field => messages, named and squished as the section compares them.
+      def expected
+        errors = @options.to_h do |name, messages|
+          [ActiveAdminPageObjects.slug(name), Array(messages).map { |text| ActiveAdminPageObjects.squish(text) }]
+        end
+        errors.reject { |_name, messages| messages.empty? }
+      end
+
+      def positive_message
+        header = expected.empty? ? "expected no field errors" : "expected exactly the given field errors"
+        "#{header}, but:\n#{differences.join("\n")}"
+      end
+
+      def negative_message
+        return "expected a field error, but no field shows one" if expected.empty?
+
+        "expected the field errors to differ from the given ones, but they match exactly"
+      end
+
+      def differences
+        expected = self.expected
+        (expected.keys | @shown.keys).filter_map { |name| difference(name, expected.fetch(name, []), @shown.fetch(name, [])) }
+      end
+
+      # The line of one field, or nil when it shows what is expected.
+      def difference(name, wanted, shown)
+        parts = { missing: lacking(wanted, shown), unexpected: lacking(shown, wanted) }.reject { |_kind, texts| texts.empty? }
+        "  #{name}: #{parts.map { |kind, texts| "#{kind} #{quoted(texts)}" }.join('; ')}" unless parts.empty?
+      end
+    end
+
+    # `have_exact_semantic_errors` and `have_no_exact_semantic_errors`. Its
+    # failure message lists the missing and the unexpected base errors, or
+    # both orders when only the order differs.
+    class SemanticErrorsMatcher < DetailedMatcher
+      SECTION = Form
+
+      private
+
+      def record(actual)
+        @shown = actual.last_semantic_errors
+      end
+
+      def expected
+        @args.map { |text| ActiveAdminPageObjects.squish(text) }
+      end
+
+      def positive_message
+        return "expected no semantic errors, but:\n#{differences.join("\n")}" if expected.empty?
+
+        order = @options[:strict_order] ? ", in order" : ""
+        "expected exactly the given semantic errors#{order}, but:\n#{differences.join("\n")}"
+      end
+
+      def negative_message
+        return "expected a semantic error, but the form shows none" if expected.empty?
+
+        "expected the semantic errors to differ from the given ones, but they match exactly"
+      end
+
+      def differences
+        lines = { missing: lacking(expected, @shown), unexpected: lacking(@shown, expected) }.filter_map do |kind, texts|
+          "  #{kind}: #{quoted(texts)}" unless texts.empty?
+        end
+        lines.empty? ? ["  order: expected #{quoted(expected)}, got #{quoted(@shown)}"] : lines
       end
     end
 

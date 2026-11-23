@@ -127,6 +127,31 @@ RSpec.describe ActiveAdminPageObjects::HasMany do
       expect(customer.orders.find_by(reference: "REF-NEW")).to have_attributes(state: "shipped", quantity: 5)
     end
 
+    it "leaves a hidden fieldset field out unless it is declared or queried with visible: :all" do
+      hide("#customer_orders_attributes_0_quantity_input")
+      fieldset = orders.fieldset(0)
+      Capybara.using_wait_time(0) do
+        expect { fieldset.field(:quantity) }.to raise_error(Capybara::ElementNotFound)
+        expect(fieldset.has_exact_fields?).to be(false)
+      end
+      expect(fieldset.exact_mismatches).to eq(missing: ["quantity"], unexpected: [], labels: {})
+      expect(fieldset.field(:quantity, visible: :all)).to be_an_instance_of(ActiveAdminPageObjects::Form::StringField)
+      expect(fieldset).to have_exact_fields(visible: :all)
+      expect(orders.fieldset(1)).to have_exact_fields
+
+      partial = declared_orders { field :reference, "Reference", ActiveAdminPageObjects::Form::StringField }.fieldset(0)
+      expect(partial.exact_mismatches[:unexpected]).to eq(["state"])
+      expect(partial.exact_mismatches(visible: :all)[:unexpected]).to eq(%w[state quantity])
+
+      declared = declared_orders do
+        field :reference, "Reference", ActiveAdminPageObjects::Form::StringField
+        field :state, "State", ActiveAdminPageObjects::Form::SelectField
+        field :quantity, "Quantity", ActiveAdminPageObjects::Form::StringField, visible: :all
+      end
+      expect(declared.fieldsets).to all(have_exact_fields)
+      expect(declared.fieldset(0).field(:quantity)).to be_an_instance_of(ActiveAdminPageObjects::Form::StringField)
+    end
+
     it "removes a new fieldset with its remove link" do
       orders.add
       expect(orders).to have_fieldsets(count: 3)

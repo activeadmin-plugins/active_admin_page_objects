@@ -6,8 +6,6 @@ module ActiveAdminPageObjects
   # A date range filter: "from" and "to" text inputs with a jQuery UI
   # datepicker. The dates are typed in, not picked.
   class DateRangeFilter < Filter
-    Filters.register_type("date_range", self)
-
     # Sets the range. Takes Date objects or ISO strings ("2026-01-31"); nil
     # clears that end.
     def set(from, to = nil)

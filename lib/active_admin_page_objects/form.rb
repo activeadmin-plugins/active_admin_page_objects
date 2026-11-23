@@ -20,38 +20,21 @@ module ActiveAdminPageObjects
     selector_key :form
 
     class << self
-      # Field class per formtastic input class, shared with subclasses.
-      # @return [Hash{String => Class}]
-      def types
-        @types ||= superclass.respond_to?(:types) ? superclass.types : {}
-      end
-
-      # Registers +klass+ for wrappers carrying the +input_class+ CSS class.
-      def register_type(input_class, klass)
-        types[input_class.to_s] = klass
-      end
-
-      # The class registered for the wrapper's formtastic class, or Field.
-      # @return [Class]
-      def field_class_for(wrapper)
-        classes = wrapper[:class].to_s.split
-        types.each { |input_class, klass| return klass if classes.include?(input_class) }
-        Field
-      end
-
       # Declares the has_many block +name+ with its +heading+ (nil for
       # `heading: false`). The block declares the fields of each fieldset.
-      # +name+ is the association.
-      def has_many(name, heading, &)
+      # +name+ is the association. +visible+ is the Capybara option the block
+      # is found with.
+      def has_many(name, heading, visible: nil, &)
         fieldsets = Class.new(HasMany::Fieldset, &)
         type = Class.new(HasMany) { self.fieldset_class = fieldsets }
-        declare_typed(:has_many, name, heading, type: type)
+        declare_typed(:has_many, name, heading, type: type, visible: visible)
       end
     end
 
     # One `li.input` wrapper of the form. `Form#field` returns the declared
-    # class, or the subclass registered for the wrapper's formtastic class, or
-    # this class.
+    # class, or the gem's subclass for the wrapper's formtastic class, or this
+    # class. The wrapper is visible unless the lookup says otherwise; a control
+    # inside it may be hidden, as a JavaScript select widget hides its `<select>`.
     class Field < Section
       include SelectControl
 
@@ -83,9 +66,10 @@ module ActiveAdminPageObjects
 
       private
 
-      # Each choice of a radio or check_boxes field: its label text and its input.
+      # Each choice of a radio or check_boxes field: its label text and its
+      # input, which a theme may hide to draw its own.
       def choices
-        all(:active_admin, :form_choice, visible: :all, wait: false).map do |label|
+        all(:active_admin, :form_choice, wait: false).map do |label|
           [label.text(:all).strip, label.find("input", visible: :all)]
         end
       end
@@ -97,15 +81,17 @@ module ActiveAdminPageObjects
     end
 
     # The `has_many` block of +association+, e.g. `has_many(:orders)`. A form
-    # that declares has_many blocks takes the declared name.
+    # that declares has_many blocks takes the declared name. A hidden block is
+    # found with `visible: :all`.
     # @raise [ArgumentError] when has_many blocks are declared and +association+ is not one of them
     # @return [HasMany]
-    def has_many(association)
+    def has_many(association, visible: nil)
       declared = self.class.declarations.select { |_name, declaration| declaration[:kind] == :has_many }
       declaration = Declarations.lookup(declared, association)
-      return HasMany.new(self, find(:css, sel(:has_many, association.to_s))) unless declaration
+      visibility = Declarations.visibility(declaration, visible)
+      return HasMany.new(self, find(:css, sel(:has_many, association.to_s), **visibility)) unless declaration
 
-      declaration[:type].new(self, find(:css, sel(:has_many, slug(association))))
+      declaration[:type].new(self, find(:css, sel(:has_many, slug(association)), **visibility))
     end
 
     # True when the base-error list shows every one of +messages+ (or any
@@ -142,43 +128,50 @@ module ActiveAdminPageObjects
       all(:active_admin, :form_semantic_error, wait: false).map { |el| el.text.strip }
     end
 
+    # The base errors the last `has_exact_semantic_errors?` or
+    # `has_no_exact_semantic_errors?` call found on its last try, in page
+    # order, or nil before the first call. The RSpec matchers build their
+    # failure message from it.
+    # @return [Array<String>, nil]
+    attr_reader :last_semantic_errors
+
     private
 
     # Formtastic ids inputs `<object_name>_<attribute>_input`; the object name
-    # is the prefix of the first namespaced field name.
+    # is the prefix of the first namespaced field name. That control may be
+    # hidden: a hidden input, or the `<select>` of a JavaScript select widget.
     def field_prefix
       field = find("input[name*='['], select[name*='['], textarea[name*='[']", match: :first, visible: :all)
       field[:name][/\A[^\[]+/]
     end
 
-    def detected_field_class(wrapper)
-      self.class.field_class_for(wrapper)
-    end
-
     def exact_semantic_errors?(messages, strict_order)
       actual, expected = [semantic_errors, messages].map { |texts| texts.map { |text| squish(text) } }
+      @last_semantic_errors = actual
       strict_order ? actual == expected : actual.sort == expected.sort
     end
 
     # The heading of a declared has_many block: nil without the block, "" when it has no heading.
-    def declared_label_text(name, declaration)
+    def declared_label_text(name, declaration, **visibility)
       return super unless declaration[:kind] == :has_many
 
       container = sel(:has_many, name)
-      return unless first(:css, container, minimum: 0, wait: false, visible: :all)
+      return unless first(:css, container, minimum: 0, wait: false, **visibility)
 
-      label_text("#{container} > h3").to_s
+      label_text("#{container} > h3", **visibility).to_s
     end
 
     # The fields outside the has_many blocks, and one entry per has_many block.
-    def page_element_keys
-      super + has_many_keys
+    def page_element_keys(**visibility)
+      super + has_many_keys(**visibility)
     end
 
-    # The associations of the has_many blocks, without the ones nested in a fieldset.
-    def has_many_keys
-      containers = all(:active_admin, :has_many_container, visible: :all, wait: false)
-      nested = containers.flat_map { |node| node.all(:active_admin, :has_many_container, visible: :all, wait: false).to_a }
+    # The associations of the has_many blocks, without the ones nested in a
+    # fieldset: the hidden ones too, so that query takes every block.
+    def has_many_keys(**visibility)
+      every = all(:active_admin, :has_many_container, visible: :all, wait: false)
+      nested = every.flat_map { |node| node.all(:active_admin, :has_many_container, visible: :all, wait: false).to_a }
+      containers = all(:active_admin, :has_many_container, wait: false, **visibility)
       [containers, nested].map { |nodes| nodes.map { |node| has_many_key(node) } }.reduce(:-).uniq
     end
 
