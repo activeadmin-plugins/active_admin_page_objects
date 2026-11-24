@@ -34,6 +34,10 @@ RSpec.describe ActiveAdminPageObjects::ModalDialog do
 
     expect(index).to have_no_modal_dialog
     expect(index.flashes).to have_no_flash(:notice)
+    # The page is still the index with its rows, so the action had its chance to run.
+    expect(index.table).to have_rows(count: 3)
+    expect(Customer.where(status: "pending")).to be_empty
+    expect(Customer.count).to eq(3)
   end
 
   it "shows the custom confirmation of an action" do

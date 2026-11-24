@@ -2,10 +2,13 @@
 
 module ActiveAdminPageObjects
   module Fields
-    # `has_disabled_field?` and `has_enabled_field?` for the sections with fields.
+    # `has_disabled_field?` and `has_enabled_field?` for a section whose
+    # `field(name, visible:)` returns a Form::Field.
     module States
       # True when the field +name+ is disabled: every control of it is, as
       # Form::Field#disabled? tells. A hidden field is found with `visible: :all`.
+      # @raise [DeclaredClassMismatch] when the page has a field of another
+      #   class than the declared one
       def has_disabled_field?(name, **options)
         field_state?(name, :disabled?, true, **options)
       end
@@ -28,16 +31,24 @@ module ActiveAdminPageObjects
       private
 
       # Waits until the field +name+ answers +state+ with +expected+. A field
-      # that is not on the page is neither disabled nor enabled. A declared
-      # class answers for its field, so its own `disabled?` counts.
+      # that is not on the page is neither disabled nor enabled.
       def field_state?(name, state, expected, visible: nil, wait: Capybara.default_max_wait_time)
-        css = field_selector(name)
-        visibility = visibility_of(name, visible)
-        type = declaration_for(name)&.fetch(:type) || Form::Field
-        eventually(wait: wait) do
-          wrapper = first(:css, css, minimum: 0, wait: false, **visibility)
-          (!wrapper.nil? && type.new(self, wrapper).public_send(state)) == expected
+        mismatch = nil
+        result = eventually(wait: wait) do
+          (field_on_page(name, visible)&.public_send(state) || false) == expected
+        rescue DeclaredClassMismatch => e
+          # Waiting does not change the class: stop, and raise outside the retry.
+          mismatch = e
+          break
         end
+        mismatch ? raise(mismatch) : result
+      end
+
+      # The field, or nil when the page has none. Inside the retry the lookup does not wait.
+      def field_on_page(name, visible)
+        field(name, visible: visible)
+      rescue Capybara::ElementNotFound => e
+        raise if e.is_a?(DeclaredClassMismatch)
       end
     end
   end

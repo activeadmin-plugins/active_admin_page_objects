@@ -5,6 +5,9 @@ class Order < ActiveRecord::Base
 
   belongs_to :customer
 
+  # Not stored: the form shows it as a check_boxes input.
+  attr_accessor :tags
+
   validates :quantity, numericality: { greater_than: 0, allow_nil: true }
 
   def self.ransackable_attributes(_auth = nil) = %w[reference state quantity customer_id]

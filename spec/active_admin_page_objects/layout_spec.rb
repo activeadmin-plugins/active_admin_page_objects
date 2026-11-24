@@ -53,6 +53,27 @@ RSpec.describe ActiveAdminPageObjects::Layout do
     expect(dashboard.utility_navigation.current_user).to eq("admin@example.com")
   end
 
+  describe ".add_element" do
+    after { described_class.elements.delete(:footer_note) }
+
+    it "declares the element on pages defined before and after the call" do
+      described_class.add_element(:footer_note, "#footer p")
+      later = Class.new(SitePrism::Page) { include ActiveAdminPageObjects::Layout }.new
+
+      expect(described_class.elements[:footer_note]).to eq(["#footer p"])
+      expect(dashboard.footer_note.text).to start_with("Powered by")
+      expect(dashboard).to have_footer_note
+      expect(later).to have_footer_note
+    end
+
+    it "replaces an element that is added again" do
+      described_class.add_element(:footer_note, "#no_such_footer")
+      expect(dashboard).to have_no_footer_note
+      described_class.add_element(:footer_note, :active_admin, :site_title)
+      expect(dashboard.footer_note.text).to eq("Page Objects Dummy")
+    end
+  end
+
   context "with rack_test", driver: :rack_test do
     it "exposes the same elements" do
       expect(dashboard).to have_site_title(text: "Page Objects Dummy")

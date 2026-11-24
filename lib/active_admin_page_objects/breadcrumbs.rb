@@ -15,19 +15,12 @@ module ActiveAdminPageObjects
 
     # True when the trail shows exactly +expected+ labels, in order.
     def has_labels?(*expected, **options)
-      has_links?(count: expected.size, **options) && labels_match?(expected)
+      has_links?(count: expected.size, **options) && texts_match?(labels, expected)
     end
 
     # Waits for the trail to differ from +expected+.
     def has_no_labels?(*expected, **options)
-      eventually(**options) { !labels_match?(expected) }
-    end
-
-    private
-
-    def labels_match?(expected)
-      actual = labels
-      actual.size == expected.size && actual.zip(expected).all? { |a, e| same_text?(a, e) }
+      eventually(**options) { !texts_match?(labels, expected) }
     end
   end
 end

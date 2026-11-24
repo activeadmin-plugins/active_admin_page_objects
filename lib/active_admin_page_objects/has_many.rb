@@ -46,10 +46,9 @@ module ActiveAdminPageObjects
 
       # Formtastic ids a field `<name with [] turned into _>`, so the prefix of
       # `customer[orders_attributes][0][reference]` is `customer_orders_attributes_0`.
-      # That control may be hidden, as the `<select>` of a JavaScript select widget is.
+      # A check_boxes or multiple select name ends in `[]` after the attribute.
       def field_prefix
-        field = find("input[name*='['], select[name*='['], textarea[name*='[']", match: :first, visible: :all)
-        field[:name].sub(/\[[^\]]*\]\z/, "").tr("[", "_").delete("]")
+        first_control_name.delete_suffix("[]").sub(/\[[^\]]*\]\z/, "").tr("[", "_").delete("]")
       end
     end
 
@@ -94,12 +93,12 @@ module ActiveAdminPageObjects
 
     # True when there are +count+ fieldsets, or any when +count+ is nil.
     def has_fieldsets?(count: nil, **options)
-      has_css?(sel(:has_many_fieldset), **(count.nil? ? {} : { count: count }), **options)
+      has_css?(sel(:has_many_fieldset), **given(count: count), **options)
     end
 
     # Waits until there are no fieldsets, or not +count+ fieldsets.
     def has_no_fieldsets?(count: nil, **options)
-      has_no_css?(sel(:has_many_fieldset), **(count.nil? ? {} : { count: count }), **options)
+      has_no_css?(sel(:has_many_fieldset), **given(count: count), **options)
     end
   end
 end

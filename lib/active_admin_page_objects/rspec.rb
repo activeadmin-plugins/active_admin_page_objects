@@ -13,55 +13,6 @@ module ActiveAdminPageObjects
   #     config.include ActiveAdminPageObjects::RSpec::Matchers
   #   end
   module RSpec
-    # `have_declared_rows`, `have_exact_fields`, `have_exact_field_errors` and
-    # the like, with a failure message that lists what differs: see
-    # DeclaredMatcher, FieldErrorsMatcher and SemanticErrorsMatcher.
-    #
-    # And `have_<name>` for every matcher capybara_active_admin 1.0.0 defines,
-    # so page objects and that gem share the names. On a SitePrism page or
-    # section that has the predicate, it is RSpec's predicate matcher:
-    # `expect(index).to have_page_title(text: "Customers")`. On anything else
-    # it is the matcher of the module included before this one.
-    module Matchers
-      NAMES = %i[
-        have_action_item have_action_item_link have_attribute_row have_attributes_table have_batch_action
-        have_fields_date_range have_flash_message have_footer have_form_error have_has_many_fields_for
-        have_no_form_errors have_page_title have_panel have_semantic_error have_semantic_errors have_sidebar
-        have_status_tag have_submit_input have_table have_table_cell have_table_header have_table_row
-        have_table_scope have_table_scopes
-      ].freeze
-
-      NAMES.each do |name|
-        define_method(name) do |*args, **options, &block|
-          # The other matcher is built when it is needed: its signature may not take a page object's arguments.
-          other = defined?(super) ? -> { super(*args, **options, &block) } : nil
-          Matcher.new(name, other, *args, **options, &block)
-        end
-      end
-
-      DECLARED_NAMES = %i[
-        have_declared_rows have_declared_columns have_declared_filters have_declared_fields
-        have_exact_rows have_exact_columns have_exact_filters have_exact_fields
-        have_no_declared_rows have_no_declared_columns have_no_declared_filters have_no_declared_fields
-        have_no_exact_rows have_no_exact_columns have_no_exact_filters have_no_exact_fields
-      ].freeze
-
-      DECLARED_NAMES.each do |name|
-        define_method(name) { |*args, **options, &block| DeclaredMatcher.new(name, *args, **options, &block) }
-      end
-
-      ERROR_MATCHERS = {
-        have_exact_field_errors: :FieldErrorsMatcher,
-        have_no_exact_field_errors: :FieldErrorsMatcher,
-        have_exact_semantic_errors: :SemanticErrorsMatcher,
-        have_no_exact_semantic_errors: :SemanticErrorsMatcher
-      }.freeze
-
-      ERROR_MATCHERS.each do |name, matcher|
-        define_method(name) { |*args, **options, &block| RSpec.const_get(matcher).new(name, *args, **options, &block) }
-      end
-    end
-
     # Base of the matchers with a detailed failure message. It asks the
     # section the predicate of the same name, as RSpec's predicate matcher
     # does, and a subclass describes what the predicate found. On an object
@@ -69,7 +20,8 @@ module ActiveAdminPageObjects
     class DetailedMatcher
       include ::RSpec::Matchers::Composable
 
-      def initialize(name, *args, **options, &block)
+      # +_other+ is the matcher of the same name of another module: unused here.
+      def initialize(name, _other, *args, **options, &block)
         @name = name
         @args = args
         @options = options
@@ -77,28 +29,28 @@ module ActiveAdminPageObjects
       end
 
       def matches?(actual)
-        return predicate_matcher.matches?(actual) unless detailed?(actual)
+        return ask(actual, @name) if detailed?(actual)
 
-        ask(actual, @name)
+        (@fallback = predicate_matcher).matches?(actual)
       end
 
       # Asks the opposite predicate, which waits: `not_to have_exact_rows` asks `has_no_exact_rows?`.
       def does_not_match?(actual)
-        return predicate_matcher.does_not_match?(actual) unless detailed?(actual)
+        return ask(actual, opposite) if detailed?(actual)
 
-        ask(actual, opposite)
+        (@fallback = predicate_matcher).does_not_match?(actual)
       end
 
       def failure_message
-        @predicate_matcher ? @predicate_matcher.failure_message : message
+        @fallback ? @fallback.failure_message : message
       end
 
       def failure_message_when_negated
-        @predicate_matcher ? @predicate_matcher.failure_message_when_negated : message
+        @fallback ? @fallback.failure_message_when_negated : message
       end
 
       def description
-        ::RSpec::Matchers::BuiltIn::Has.new(@name, *@args, **@options, &@block).description
+        predicate_matcher.description
       end
 
       private
@@ -120,7 +72,7 @@ module ActiveAdminPageObjects
       end
 
       def predicate_matcher
-        @predicate_matcher = ::RSpec::Matchers::BuiltIn::Has.new(@name, *@args, **@options, &@block)
+        ::RSpec::Matchers::BuiltIn::Has.new(@name, *@args, **@options, &@block)
       end
 
       # Keeps what the predicate found: a later call on the section replaces it.
@@ -209,16 +161,11 @@ module ActiveAdminPageObjects
 
       private
 
+      attr_reader :expected
+
       def record(actual)
         @shown = actual.last_field_errors
-      end
-
-      # Field => messages, named and squished as the section compares them.
-      def expected
-        errors = @options.to_h do |name, messages|
-          [ActiveAdminPageObjects.slug(name), Array(messages).map { |text| ActiveAdminPageObjects.squish(text) }]
-        end
-        errors.reject { |_name, messages| messages.empty? }
+        @expected = actual.field_error_expectation(@options)
       end
 
       def positive_message
@@ -233,7 +180,6 @@ module ActiveAdminPageObjects
       end
 
       def differences
-        expected = self.expected
         (expected.keys | @shown.keys).filter_map { |name| difference(name, expected.fetch(name, []), @shown.fetch(name, [])) }
       end
 
@@ -252,12 +198,11 @@ module ActiveAdminPageObjects
 
       private
 
+      attr_reader :expected
+
       def record(actual)
         @shown = actual.last_semantic_errors
-      end
-
-      def expected
-        @args.map { |text| ActiveAdminPageObjects.squish(text) }
+        @expected = actual.semantic_error_expectation(@args)
       end
 
       def positive_message
@@ -281,9 +226,15 @@ module ActiveAdminPageObjects
       end
     end
 
-    # Picks the matcher when it sees what the expectation is about.
+    # Picks the matcher when it sees what the expectation is about: RSpec's
+    # predicate matcher for a page object that has the predicate, or else the
+    # matcher of the same name of the module included before.
     class Matcher
       include ::RSpec::Matchers::Composable
+
+      # Capybara's own `has_table?` reaches a page through Capybara::DSL and a
+      # section through SitePrism::Section, which delegates to its root element.
+      CAPYBARA_OWNERS = [Capybara::DSL, SitePrism::Section].freeze
 
       def initialize(name, other, *args, **options, &block)
         @name = name
@@ -294,9 +245,9 @@ module ActiveAdminPageObjects
       end
 
       def matches?(actual)
-        return predicate_matcher(@name).matches?(actual) if page_object?(actual) || @other.nil?
-
-        (@matcher = @other.call).matches?(actual)
+        @negated = false
+        @matcher = page_object?(actual) || @other.nil? ? predicate_matcher(@name) : @other.call
+        @matcher.matches?(actual)
       end
 
       # A page object that has `has_no_<name>?` is asked that, as SitePrism does:
@@ -304,10 +255,10 @@ module ActiveAdminPageObjects
       def does_not_match?(actual)
         return other_does_not_match?(actual) unless page_object?(actual) || @other.nil?
 
-        negated = :"have_no_#{root}"
-        return predicate_matcher(negated).matches?(actual) if actual.respond_to?(:"has_no_#{root}?")
+        @negated = actual.respond_to?(:"has_no_#{root}?")
+        return (@matcher = predicate_matcher(:"have_no_#{root}")).matches?(actual) if @negated
 
-        predicate_matcher(@name).does_not_match?(actual)
+        (@matcher = predicate_matcher(@name)).does_not_match?(actual)
       end
 
       def failure_message
@@ -328,18 +279,68 @@ module ActiveAdminPageObjects
         @name.to_s.delete_prefix("have_")
       end
 
+      # True for a SitePrism page or section that defines the predicate
+      # itself, as `section :table` does. A predicate it only has from
+      # Capybara is not a page-object predicate.
       def page_object?(actual)
-        (actual.is_a?(SitePrism::Page) || actual.is_a?(SitePrism::Section)) && actual.respond_to?(:"has_#{root}?")
+        predicate = :"has_#{root}?"
+        return false unless actual.is_a?(SitePrism::Page) || actual.is_a?(SitePrism::Section)
+
+        actual.respond_to?(predicate) && !CAPYBARA_OWNERS.include?(actual.method(predicate).owner)
       end
 
       def predicate_matcher(name)
-        @negated = name != @name
-        @matcher = ::RSpec::Matchers::BuiltIn::Has.new(name, *@args, **@options, &@block)
+        ::RSpec::Matchers::BuiltIn::Has.new(name, *@args, **@options, &@block)
       end
 
       def other_does_not_match?(actual)
+        @negated = false
         @matcher = @other.call
         @matcher.respond_to?(:does_not_match?) ? @matcher.does_not_match?(actual) : !@matcher.matches?(actual)
+      end
+    end
+
+    # `have_declared_rows`, `have_exact_fields`, `have_exact_field_errors` and
+    # the like, with a failure message that lists what differs: see
+    # DeclaredMatcher, FieldErrorsMatcher and SemanticErrorsMatcher.
+    #
+    # And `have_<name>` for every matcher capybara_active_admin 1.0.0 defines,
+    # so page objects and that gem share the names. On a SitePrism page or
+    # section that has the predicate, it is RSpec's predicate matcher:
+    # `expect(index).to have_page_title(text: "Customers")`. On anything else
+    # it is the matcher of the module included before this one.
+    module Matchers
+      # The matcher names of capybara_active_admin 1.0.0.
+      NAMES = %i[
+        have_action_item have_action_item_link have_attribute_row have_attributes_table have_batch_action
+        have_fields_date_range have_flash_message have_footer have_form_error have_has_many_fields_for
+        have_no_form_errors have_page_title have_panel have_semantic_error have_semantic_errors have_sidebar
+        have_status_tag have_submit_input have_table have_table_cell have_table_header have_table_row
+        have_table_scope have_table_scopes
+      ].freeze
+
+      DECLARED_NAMES = Declarations.predicate_names.map { |name| :"#{name.to_s.sub('has_', 'have_').chomp('?')}" }.freeze
+
+      ERROR_MATCHERS = {
+        have_exact_field_errors: FieldErrorsMatcher,
+        have_no_exact_field_errors: FieldErrorsMatcher,
+        have_exact_semantic_errors: SemanticErrorsMatcher,
+        have_no_exact_semantic_errors: SemanticErrorsMatcher
+      }.freeze
+
+      # Matcher name => matcher class.
+      MATCHERS = {
+        **NAMES.to_h { |name| [name, Matcher] },
+        **DECLARED_NAMES.to_h { |name| [name, DeclaredMatcher] },
+        **ERROR_MATCHERS
+      }.freeze
+
+      MATCHERS.each do |name, matcher|
+        define_method(name) do |*args, **options, &block|
+          # The other matcher is built when it is needed: its signature may not take a page object's arguments.
+          other = defined?(super) ? -> { super(*args, **options, &block) } : nil
+          matcher.new(name, other, *args, **options, &block)
+        end
       end
     end
   end

@@ -1,10 +1,6 @@
 # frozen_string_literal: true
 
 module ActiveAdminPageObjects
-  # Marks a selector-map entry for a feature that ActiveAdmin 4 removed. Kept
-  # so code written for 2.x still loads; no 1.x entry uses it.
-  REMOVED = Object.new.freeze
-
   # Marks a selector-map entry for a feature that ActiveAdmin 3 does not have.
   NOT_IN_ACTIVE_ADMIN_3 = Object.new.freeze
 

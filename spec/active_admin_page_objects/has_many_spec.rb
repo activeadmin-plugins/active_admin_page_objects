@@ -51,6 +51,7 @@ RSpec.describe ActiveAdminPageObjects::HasMany do
     end
 
     it "has the declared fields in each fieldset and no other" do
+      expect(orders).to have_fieldsets(count: 2)
       expect(orders.fieldsets).to all(have_declared_fields)
       expect(orders.fieldsets).to all(have_exact_fields)
       expect(orders.fieldset(1).exact_mismatches).to eq(missing: [], unexpected: [], labels: {})
@@ -148,6 +149,7 @@ RSpec.describe ActiveAdminPageObjects::HasMany do
         field :state, "State", ActiveAdminPageObjects::Form::SelectField
         field :quantity, "Quantity", ActiveAdminPageObjects::Form::StringField, visible: :all
       end
+      expect(declared).to have_fieldsets(count: 2)
       expect(declared.fieldsets).to all(have_exact_fields)
       expect(declared.fieldset(0).field(:quantity)).to be_an_instance_of(ActiveAdminPageObjects::Form::StringField)
     end
@@ -156,6 +158,12 @@ RSpec.describe ActiveAdminPageObjects::HasMany do
       orders.add
       expect(orders).to have_fieldsets(count: 3)
       orders.remove(2)
+      expect(orders).to have_fieldsets(count: 2)
+    end
+
+    it "raises when a fieldset has neither a remove link nor a delete checkbox" do
+      page.execute_script("document.querySelectorAll('li.has_many_delete').forEach((node) => node.remove())")
+      expect { orders.remove(0) }.to raise_error(ArgumentError, /no remove link and no delete checkbox/)
       expect(orders).to have_fieldsets(count: 2)
     end
 
@@ -168,6 +176,44 @@ RSpec.describe ActiveAdminPageObjects::HasMany do
       expect(form_page.flashes).to have_flash(:notice, "Customer was successfully updated.")
       expect(customer.orders.pluck(:reference)).to eq(["REF-B1"])
     end
+  end
+
+  # The dummy form puts a check_boxes input first for this customer: its
+  # hidden input is named `customer[orders_attributes][0][tags][]`.
+  shared_examples "a fieldset that starts with a check_boxes input" do
+    let(:customer) { create_customer(external_id: "ORDER-TAGS") }
+
+    # Found again on each call: the form is rendered anew after a submit.
+    def fieldset
+      ActiveAdminPageObjects::Form.new(form_page, form_page.form.root_element).has_many(:orders).fieldset(0)
+    end
+
+    before do
+      create_order("REF-1", "paid", 2)
+      form_page.load(id: customer.id, action: "edit")
+    end
+
+    it "finds the fields by the fieldset prefix" do
+      expect(fieldset.field(:tags)).to be_an_instance_of(ActiveAdminPageObjects::Form::CheckBoxesField)
+      expect(fieldset.field(:reference).value).to eq("REF-1")
+      expect(fieldset).to have_enabled_field(:quantity)
+    end
+
+    it "sees the inline errors of the fieldset" do
+      fieldset.fill(quantity: 0)
+      form.submit
+
+      expect(fieldset).to have_field_error(:quantity, "must be greater than 0")
+      expect(fieldset).to have_exact_field_errors(quantity: "must be greater than 0")
+      expect(fieldset.has_no_field_error?(:quantity, wait: 0)).to be(false)
+      Capybara.using_wait_time(0) { expect(fieldset.has_exact_field_errors?).to be(false) }
+    end
+  end
+
+  it_behaves_like "a fieldset that starts with a check_boxes input"
+
+  context "with rack_test and a leading check_boxes input", driver: :rack_test do
+    it_behaves_like "a fieldset that starts with a check_boxes input"
   end
 
   context "when creating a customer" do

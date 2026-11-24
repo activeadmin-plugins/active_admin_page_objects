@@ -24,6 +24,9 @@ RSpec.describe ActiveAdminPageObjects::Flashes do
 
   it "rejects a type outside TYPES" do
     expect { index.flashes.has_flash?(:info) }.to raise_error(ArgumentError, /flash type/)
+    expect { index.flashes.has_flash?(nil) }.to raise_error(ArgumentError, /flash type must be one of .*got nil/)
+    expect { index.flashes.has_no_flash?(nil) }.to raise_error(ArgumentError, /flash type/)
+    expect { index.flashes.messages(42) }.to raise_error(ArgumentError, /got 42/)
   end
 
   it "finds no flash on a page without flashes" do

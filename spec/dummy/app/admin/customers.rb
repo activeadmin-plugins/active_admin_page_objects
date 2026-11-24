@@ -7,7 +7,7 @@ ActiveAdmin.register Customer do
 
   permit_params :name, :email, :external_id, :status, :balance, :active, :category_id, :notes,
                 :website, :phone, :password, :tier, :signed_on,
-                channels: [], orders_attributes: %i[id reference state quantity _destroy]
+                channels: [], orders_attributes: [:id, :reference, :state, :quantity, :_destroy, { tags: [] }]
 
   scope :all, default: true
   scope(:active) { |customers| customers.where(active: true) }
@@ -125,6 +125,8 @@ ActiveAdmin.register Customer do
       f.input :signed_on, as: :datepicker
     end
     f.has_many :orders, heading: "Orders", allow_destroy: true do |o|
+      # A check_boxes input first: its hidden input is named `...[tags][]`.
+      o.input :tags, as: :check_boxes, collection: %w[Gift Rush] if f.object.external_id == "ORDER-TAGS"
       o.input :reference
       o.input :state, as: :select, collection: Order::STATES
       o.input :quantity, input_html: { disabled: params[:lock_quantity].present? }

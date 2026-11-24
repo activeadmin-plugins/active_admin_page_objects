@@ -27,7 +27,7 @@ end
 require "active_admin_page_objects"
 ```
 
-Runtime dependencies: `activeadmin` (>= 3.0, < 4.0.0.a), `site_prism` (>= 5.0, < 7) and `capybara` (>= 3.37).
+Runtime dependencies: `activeadmin` (>= 3.0, < 4.0.0.a), `site_prism` (>= 5.0, < 7) and `capybara` (>= 3.37), on Ruby 3.3 or later. CI runs Ruby 3.3 and 3.4 with activeadmin 3.5.2, capybara 3.40 and site_prism 5.2 and 6.0; older versions inside these ranges are not tested.
 
 ### Rails 8 setup
 
@@ -106,6 +106,8 @@ page_object.breadcrumbs.labels # => ["Admin", "Customers"]
 page_object.breadcrumbs.links # => Capybara elements
 ```
 
+`labels` returns the text the driver reports. ActiveAdmin 3's CSS uppercases the trail, so a JavaScript driver gives `["ADMIN", "CUSTOMERS"]`. The matchers ignore case.
+
 ### Action items
 
 ```ruby
@@ -174,6 +176,8 @@ expect(table).to have_row(customer.id) # by record id
 expect(table).to have_no_row(deleted.id)
 ```
 
+`row`, `have_row` and `have_no_row` take the record id: an Integer or a non-empty String. Anything else, such as the record itself or `nil`, raises `ArgumentError`.
+
 Sorting reads and clicks the header links:
 
 ```ruby
@@ -185,7 +189,7 @@ expect(table).to have_sortable_column(:name)
 
 The first click on an unsorted column sorts descending.
 
-The section defaults to `table.data-table`. Pass a locator for another table, such as a `table_for` inside a panel: `section :orders, ActiveAdminPageObjects::Table, "#orders_panel table"`.
+The section defaults to `table.index_table`. Pass a locator for another table, such as a `table_for` inside a panel: `section :orders, ActiveAdminPageObjects::Table, "#orders_panel table"`.
 
 ### Attributes table
 
@@ -295,7 +299,7 @@ expect(filters.filter(:active)).to have_value(true)
 expect(filters.filter(:created_at)).to have_range("2026-01-01", "2026-01-31")
 ```
 
-`DateRangeFilter` types the dates into the two inputs. It does not use the jQuery UI datepicker.
+`DateRangeFilter` types the dates into the two inputs. It does not use the jQuery UI datepicker. `set` takes Date objects or ISO strings; `nil` or `""` clears that end.
 
 Declare one filter directly when a page uses it often:
 
@@ -560,7 +564,9 @@ section :form, ActiveAdminPageObjects::Form do
 end
 ```
 
-The declared class must be the class the gem detects for the wrapper, or a subclass of it. Otherwise the lookup raises `Capybara::ExpectationNotMet`, and the message names both classes.
+The declared class must be the class the gem detects for the wrapper, or a subclass of it. Otherwise the lookup raises `ActiveAdminPageObjects::DeclaredClassMismatch`, a `Capybara::ExpectationNotMet`, and the message names both classes. `have_disabled_field` and `have_enabled_field` raise it too.
+
+Two of the gem's classes are subclasses of another detected class, so the check takes them for the parent's input: `Form::DatePickerField` on a string input, and `BooleanFilter` on a select filter.
 
 The gem detects its own classes by the formtastic class of the wrapper, and `Form::Field` or `Filter` for any other input. That list is fixed: there is no registry to add to. A section without declarations returns the detected class.
 
@@ -614,8 +620,11 @@ end
 
 form.has_many(:gateways).add.field(:id) # the SelectField of the new fieldset
 form.has_many(:gateways).fieldset(0).field(:id).selected
+expect(form.has_many(:gateways)).to have_fieldsets(count: 2)
 expect(form.has_many(:gateways).fieldsets).to all(have_exact_fields)
 ```
+
+`fieldsets` reads the page once, and `all` passes on an empty list, so check the count first.
 
 - `heading` is the text of the block's `h3`. The form's label matchers compare it. Pass `nil` when the form uses `heading: false`.
 - `name` is the association.
@@ -657,6 +666,7 @@ expect(form_page.form).to have_declared_fields(only: %i[email status])
 
 - `only:` checks these elements and ignores the rest of the page, so no element is unexpected.
 - `except:` skips these elements: the page may have them or not.
+- A scope that leaves no declared name, such as `only: []`, raises `ArgumentError`: it would pass on any page.
 
 ### Hidden elements
 
@@ -709,6 +719,8 @@ end
 
 expect(show.attributes_table).to have_exact_rows(except: :notes)
 ```
+
+`active_admin_page_objects/rspec` requires `rspec/expectations`. The gem does not depend on it: your suite's `rspec` or `rspec-rails` provides it.
 
 ```
 expected exactly the declared rows (except: notes), but:
@@ -766,7 +778,7 @@ index.table.exact_mismatches
 
 ### Strict names
 
-A section that declares anything raises `ArgumentError` for every other name, before it queries the page. The message gives the name and lists the declared ones. A section without declarations takes any key, as before.
+A section that declares anything raises `ArgumentError` for every other name, before it queries the page. `Form#has_many` is the exception: it checks the name only when the form declares has_many blocks. The message gives the name and lists the declared ones. A section without declarations takes any key, as before.
 
 - `AttributesTable`: `has_row?`, `has_no_row?`, `row`, `value`, `status_tag`, `status_tags`, `has_status_tag?` and `has_no_status_tag?`.
 - `Table`: `sort_by` and `has_sortable_column?`. Its rows: `cell`, `has_cell?`, `has_no_cell?`, `status_tag`, `status_tags`, `has_status_tag?` and `has_no_status_tag?`.
@@ -793,6 +805,7 @@ end
 ```
 
 - On a SitePrism page or section that has the predicate, such as `has_page_title?`, the matcher calls it, like RSpec's own `have_` matchers. Negated, it calls `has_no_page_title?` when the object has it.
+- Capybara's own `has_table?` does not count as such a predicate. `have_table` calls the page object only when it defines `has_table?` itself, as a page with `section :table` does.
 - On anything else, such as Capybara's `page`, it is the matcher of the module included before.
 
 It covers the matchers of capybara_active_admin 1.0.0: `have_action_item`, `have_action_item_link`, `have_attribute_row`, `have_attributes_table`, `have_batch_action`, `have_fields_date_range`, `have_flash_message`, `have_footer`, `have_form_error`, `have_has_many_fields_for`, `have_no_form_errors`, `have_page_title`, `have_panel`, `have_semantic_error`, `have_semantic_errors`, `have_sidebar`, `have_status_tag`, `have_submit_input`, `have_table`, `have_table_cell`, `have_table_header`, `have_table_row`, `have_table_scope` and `have_table_scopes`.
@@ -884,7 +897,7 @@ A theme or plugin ships its own page objects in its own repository, with one ent
 ```ruby
 # lib/my_plugin/page_objects.rb
 require "active_admin_page_objects"
-ActiveAdminPageObjects.check_version!(">= 1.0.0.a", "< 2", plugin: "my_plugin")
+ActiveAdminPageObjects.check_version!(">= 1.0.0.a", "< 2.0.0.a", plugin: "my_plugin")
 
 module MyPlugin
   class Widget < ActiveAdminPageObjects::Section

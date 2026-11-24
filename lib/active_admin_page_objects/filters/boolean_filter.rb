@@ -23,8 +23,7 @@ module ActiveAdminPageObjects
     private
 
     def option_label(value)
-      option_value = value.nil? ? "" : value.to_s
-      native_select(root_element).find("option[value=\"#{option_value}\"]", visible: :all).text(:all).strip
+      option_text(native_select(root_element), value)
     end
   end
 end

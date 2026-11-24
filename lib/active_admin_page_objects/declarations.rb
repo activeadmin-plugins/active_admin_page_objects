@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require_relative "declarations/lookup"
+require_relative "declarations/typed"
+
 module ActiveAdminPageObjects
   # Names and labels declared on a section class. AttributesTable, Table,
   # Filters, Form and HasMany::Fieldset include it and add their own class
@@ -18,16 +21,24 @@ module ActiveAdminPageObjects
   module Declarations
     def self.included(base)
       base.extend(ClassMethods)
+      base.include(Lookup)
+    end
+
+    # The Capybara `visible:` option as a hash: empty for nil, so Capybara's
+    # default applies.
+    # @api private
+    # @return [Hash]
+    def self.visible_option(visible)
+      { visible: visible }.compact
     end
 
     # The Capybara `visible:` option of an element: +visible+ when given, or
-    # else the one of its +declaration+. Empty without either, so Capybara's
-    # default applies.
+    # else the one of its +declaration+.
     # @api private
     # @return [Hash]
     def self.visibility(declaration, visible = nil)
       visible = declaration[:visible] if visible.nil? && declaration
-      visible.nil? ? {} : { visible: visible }
+      visible_option(visible)
     end
 
     # The declaration of +key+ in +declarations+, or nil when nothing is declared.
@@ -41,12 +52,32 @@ module ActiveAdminPageObjects
       end
     end
 
+    # The predicates .define_predicates has defined, e.g. `:has_exact_rows?`.
+    # @api private
+    # @return [Array<Symbol>]
+    def self.predicate_names
+      @predicate_names ||= []
+    end
+
+    # Defines `has_declared_<elements>?`, `has_exact_<elements>?` and their
+    # `has_no_` forms on +base+. Each takes `only:`, `except:`, `visible:` and `wait:`.
+    # @api private
+    def self.define_predicates(base, elements)
+      { declared: false, exact: true }.each do |kind, exact|
+        { has: true, has_no: false }.each do |prefix, expected|
+          name = :"#{prefix}_#{kind}_#{elements}?"
+          predicate_names << name
+          base.define_method(name) { |**options| declared_match?(expected, exact: exact, **options) }
+        end
+      end
+    end
+
     module ClassMethods
       # The declarations of this class and its superclasses, in declaration
       # order. A subclass adds to its own copy.
-      # @return [Hash{String => Hash}] name => `{ label: }`, with `type:`
-      #   and `kind:` for filters, fields and has_many blocks, and with
-      #   `visible:` when the declaration gives it
+      # @return [Hash{String => Hash}] name => `{ label: }`, with `type:` for
+      #   filters, fields and has_many blocks, `kind:` for fields and has_many
+      #   blocks, and `visible:` when the declaration gives it
       def declarations
         inherited = superclass.respond_to?(:declarations) ? superclass.declarations : {}
         inherited.merge(own_declarations).freeze
@@ -59,11 +90,11 @@ module ActiveAdminPageObjects
         own_declarations[ActiveAdminPageObjects.slug(name)] = { label: label.to_s, **options }.freeze
       end
 
-      # Declares +name+ with its section class.
-      def declare_typed(kind, name, label, type:, visible: nil)
-        raise ArgumentError, "`#{kind} #{name.inspect}` needs a section class, got #{type.inspect}" unless type.is_a?(Class)
+      # Declares +name+ with its section class, for the class method +macro+.
+      def declare_typed(macro, name, label, type:, **options)
+        raise ArgumentError, "`#{macro} #{name.inspect}` needs a section class, got #{type.inspect}" unless type.is_a?(Class)
 
-        declare(name, label, type: type, kind: kind, visible: visible)
+        declare(name, label, type: type, **options)
       end
 
       def own_declarations
@@ -76,7 +107,8 @@ module ActiveAdminPageObjects
     # Empty when every declared label matches. +only+ and +except+ narrow the
     # declared names that are compared. +visible+ is Capybara's option, for
     # every element.
-    # @raise [ArgumentError] when the section declares nothing, or for a name that is not declared
+    # @raise [ArgumentError] when the section declares nothing, for a name
+    #   that is not declared, or when no declared name is in scope
     # @return [Hash{String => String, nil}]
     def declared_label_mismatches(only: nil, except: nil, visible: nil)
       declarations_in_scope(only, except).each_with_object({}) do |(name, declaration), mismatches|
@@ -89,7 +121,7 @@ module ActiveAdminPageObjects
     # names the page lacks, the elements on the page that are not declared, and
     # the labels that differ. With +only+ nothing is unexpected. +visible+ is
     # Capybara's option, for every element.
-    # @raise [ArgumentError] when the section declares nothing, or for a name that is not declared
+    # @raise [ArgumentError] as #declared_label_mismatches does
     # @return [Hash] `{ missing: [name], unexpected: [key], labels: { name => label found } }`
     def exact_mismatches(only: nil, except: nil, visible: nil)
       mismatches(true, only: only, except: except, visible: visible)
@@ -103,41 +135,26 @@ module ActiveAdminPageObjects
 
     private
 
-    def declaration_for(key)
-      Declarations.lookup(self.class.declarations, key)
-    end
-
-    # The `visible:` option for the declared or undeclared element +key+.
-    def visibility_of(key, visible = nil)
-      Declarations.visibility(declaration_for(key), visible)
-    end
-
     # The text of +element+, found with +visibility+. A hidden element has no
     # visible text, so a lookup that takes hidden elements reads the DOM text.
     def text_of(element, visibility)
       element.text([nil, true, :visible].include?(visibility[:visible]) ? nil : :all)
     end
 
-    # The section for +wrapper+: the declared class, or +detected+ when nothing is declared.
-    def build_declared(name, declaration, detected, wrapper)
-      return detected.new(self, wrapper) unless declaration
-
-      declared = declaration[:type]
-      return declared.new(self, wrapper) if declared <= detected
-
-      raise Capybara::ExpectationNotMet, "#{name.inspect} is declared as #{declared}, but the page has #{detected}"
-    end
-
     def declarations_in_scope(only, except)
-      declarations = self.class.declarations
       raise ArgumentError, "the section declares no labels" if declarations.empty?
 
-      only, except = [only, except].map { |names| declared_names(names) }
-      declarations.select { |name, _| (only.nil? || only.include?(name)) && !except&.include?(name) }
+      names = declarations.keys
+      names &= declared_names(only) if only
+      names -= declared_names(except) if except
+      # An empty scope would match any page.
+      raise ArgumentError, "only: and except: leave no declared name to compare" if names.empty?
+
+      declarations.slice(*names)
     end
 
     def declared_names(names)
-      names && Array(names).map do |name|
+      Array(names).map do |name|
         declaration_for(name)
         slug(name)
       end
@@ -152,7 +169,7 @@ module ActiveAdminPageObjects
     end
 
     def undeclared_element_keys(visible)
-      page_element_keys(**Declarations.visibility(nil, visible)) - self.class.declarations.keys
+      page_element_keys(**Declarations.visible_option(visible)) - declarations.keys
     end
 
     # Waits until the page matches the declarations in scope (+expected+ true)
@@ -185,16 +202,25 @@ module ActiveAdminPageObjects
       label ? own_text(label) : ""
     end
 
-    # The text of +element+ without the text of the links, buttons and `abbr`
-    # inside it: formtastic's required marker, and controls that plugins
-    # append to labels (the date range preset's "Set range"). `text(:all)`
-    # holds the text of hidden children too, so they are found the same way.
+    OWN_TEXT_SCRIPT = <<~JS
+      (function (element) {
+        var copy = element.cloneNode(true);
+        copy.querySelectorAll("a, button, abbr").forEach(function (child) { child.remove(); });
+        return copy.textContent;
+      })(arguments[0])
+    JS
+    private_constant :OWN_TEXT_SCRIPT
+
+    # The DOM text of +element+ without the links, buttons and `abbr` inside
+    # it: formtastic's required marker, and controls that plugins append to
+    # labels (the date range preset's "Set range"). The children are taken out
+    # of a copy of the node, so a label that repeats their text keeps it.
     def own_text(element)
-      text = element.text(:all)
-      element.all(:css, "a, button, abbr", minimum: 0, wait: false, visible: :all).each do |child|
-        text = text.sub(child.text(:all), "")
-      end
-      squish(text)
+      squish(element.session.evaluate_script(OWN_TEXT_SCRIPT, element))
+    rescue Capybara::NotSupportedByDriverError
+      copy = element.native.dup
+      copy.css("a, button, abbr").each(&:remove)
+      squish(copy.text)
     end
   end
 end

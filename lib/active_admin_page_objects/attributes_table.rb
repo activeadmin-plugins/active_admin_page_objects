@@ -9,6 +9,9 @@ module ActiveAdminPageObjects
   #     row :name, "Name"
   #     row :external_id, "External ID"
   #   end
+  #
+  # `status_tag(:status)`, `status_tags(:status)` and `has_status_tag?` read
+  # the value cell of a row: see StatusTag::Matchers.
   class AttributesTable < Section
     include Declarations
     include StatusTag::Matchers
@@ -46,52 +49,8 @@ module ActiveAdminPageObjects
       text_of(find(:css, cell_selector(key), **visibility), visibility).strip
     end
 
-    # The status tag in the value cell of row +key+.
-    # @raise [Capybara::Ambiguous] when the cell has several: see #status_tags
-    # @return [StatusTag]
-    def status_tag(key, visible: nil)
-      visibility = visibility_of(key, visible)
-      StatusTag.new(self, find(:css, cell_selector(key), **visibility).find(:active_admin, :status_tag, **visibility))
-    end
-
-    # Every status tag in the value cell of row +key+, in page order.
-    # @return [Array<StatusTag>]
-    def status_tags(key, visible: nil)
-      status_tags_in(cell_selector(key), **visibility_of(key, visible))
-    end
-
-    # True when a status tag of row +key+ has +label+, ignoring case, and
-    # every class of +type+.
-    def has_status_tag?(key, label, type: nil, **options)
-      status_tag_match?(true, cell_selector(key), label, type, **visibility_of(key), **options)
-    end
-
-    # Waits until no status tag of row +key+ is such a tag.
-    def has_no_status_tag?(key, label, type: nil, **options)
-      status_tag_match?(false, cell_selector(key), label, type, **visibility_of(key), **options)
-    end
-
-    # True when every declared row in scope has exactly its declared label.
-    # +only+ and +except+ take declared keys. +visible+ is Capybara's option,
-    # for every row.
-    def has_declared_rows?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(true, exact: false, only: only, except: except, visible: visible, **options)
-    end
-
-    # Waits until a declared row in scope has another label, or is missing.
-    def has_no_declared_rows?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(false, exact: false, only: only, except: except, visible: visible, **options)
-    end
-
-    # Like #has_declared_rows?, and the table has no row that is not declared.
-    def has_exact_rows?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(true, exact: true, only: only, except: except, visible: visible, **options)
-    end
-
-    # Waits until the rows differ from the declared ones.
-    def has_no_exact_rows?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(false, exact: true, only: only, except: except, visible: visible, **options)
-    end
+    # `has_declared_rows?`, `has_exact_rows?` and their `has_no_` forms.
+    Declarations.define_predicates(self, :rows)
 
     private
 
@@ -109,9 +68,7 @@ module ActiveAdminPageObjects
     end
 
     def page_element_keys(**visibility)
-      all(:css, sel(:attributes_table_rows), wait: false, **visibility).filter_map do |row|
-        row[:class].to_s.split.filter_map { |name| name[/\Arow-(.+)\z/, 1] }.first
-      end
+      all(:css, sel(:attributes_table_rows), wait: false, **visibility).filter_map { |row| class_key(row, "row-") }
     end
   end
 end

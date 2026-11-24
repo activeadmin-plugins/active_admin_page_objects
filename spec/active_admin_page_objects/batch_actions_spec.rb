@@ -23,6 +23,15 @@ RSpec.describe ActiveAdminPageObjects::BatchActions do
     expect(index.flashes).to have_flash(:notice, "Flagged 2 customers")
   end
 
+  # The button toggles the menu: a second click would close it.
+  it "applies an action when the menu is already open" do
+    batch_actions.select_all
+    find(".batch_actions_selector a.dropdown_menu_button").click
+    expect(page).to have_css(".batch_actions_selector .dropdown_menu_list_wrapper")
+    batch_actions.apply("Flag Selected")
+    expect(index.flashes).to have_flash(:notice, "Flagged 3 customers")
+  end
+
   it "confirms the dialog of an action with a confirmation" do
     batch_actions.select_all
     batch_actions.apply("Archive Selected")

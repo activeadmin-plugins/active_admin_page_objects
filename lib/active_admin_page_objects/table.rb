@@ -23,69 +23,11 @@ module ActiveAdminPageObjects
 
     SORT_DIRECTIONS = %i[asc desc].freeze
 
-    # Sorting by the header links.
-    module Sorting
-      # Clicks the header link of column +key+. With +direction+ (`:asc` or
-      # `:desc`) it clicks until the column is sorted that way: the first click
-      # on an unsorted column sorts descending.
-      # @raise [Capybara::ElementNotFound] when the column is not sortable
-      def sort_by(key, direction = nil)
-        declaration_for(key)
-        return click_sort_link(key) if direction.nil?
-
-        direction = checked_direction(direction)
-        2.times do
-          current = sort_direction(key)
-          break if current == direction
-
-          click_sort_link(key)
-          # The click reloads the page; wait for the header to show the new order.
-          eventually { sort_direction(key) != current } ||
-            raise(Capybara::ExpectationNotMet, "column #{key.inspect} kept its sort order after a click")
-        end
-      end
-
-      # The sorted column and its direction, e.g. `["name", :desc]`, or nil
-      # when no column is sorted.
-      # @return [Array(String, Symbol), nil]
-      def sorted_by
-        th = first(:active_admin, :table_sorted_header, minimum: 0, wait: false)
-        th && [column_key(th), direction_of(th)]
-      end
-
-      # True when column +key+ has a sort link.
-      def has_sortable_column?(key)
-        has_css?(sel(:table_sortable_header, slug(key)), **visibility_of(key))
-      end
-
-      private
-
-      def sortable_header(key)
-        find(:css, sel(:table_sortable_header, slug(key)))
-      end
-
-      def click_sort_link(key)
-        sortable_header(key).find(:active_admin, :table_sort_link).click
-      end
-
-      def sort_direction(key)
-        direction_of(sortable_header(key))
-      end
-
-      def checked_direction(direction)
-        return direction.to_sym if SORT_DIRECTIONS.include?(direction.to_sym)
-
-        raise ArgumentError, "direction must be one of #{SORT_DIRECTIONS.inspect}, got #{direction.inspect}"
-      end
-
-      def direction_of(header)
-        SORT_DIRECTIONS.find { |direction| header[:class].to_s.split.include?("sorted-#{direction}") }
-      end
-    end
-    include Sorting
-
-    # One `<tr>` of the table body.
+    # One `<tr>` of the table body. `status_tag(:status)`,
+    # `status_tags(:status)` and `has_status_tag?` read the cell of a column:
+    # see StatusTag::Matchers.
     class Row < Section
+      include Declarations::Lookup
       include StatusTag::Matchers
 
       # The record id from the row's `id="<resource>_<id>"`.
@@ -116,63 +58,38 @@ module ActiveAdminPageObjects
         find(:active_admin, :table_row_checkbox).check
       end
 
-      # The status tag in the cell of column +key+.
-      # @raise [Capybara::Ambiguous] when the cell has several: see #status_tags
-      # @return [StatusTag]
-      def status_tag(key, visible: nil)
-        StatusTag.new(self, cell(key, visible: visible).find(:active_admin, :status_tag, **visibility_of(key, visible)))
-      end
-
-      # Every status tag in the cell of column +key+, in page order.
-      # @return [Array<StatusTag>]
-      def status_tags(key, visible: nil)
-        status_tags_in(cell_selector(key), **visibility_of(key, visible))
-      end
-
-      # True when a status tag of column +key+ has +label+, ignoring case,
-      # and every class of +type+.
-      def has_status_tag?(key, label, type: nil, **options)
-        status_tag_match?(true, cell_selector(key), label, type, **visibility_of(key), **options)
-      end
-
-      # Waits until no status tag of column +key+ is such a tag.
-      def has_no_status_tag?(key, label, type: nil, **options)
-        status_tag_match?(false, cell_selector(key), label, type, **visibility_of(key), **options)
-      end
-
       private
 
       # The columns are declared on the table the row belongs to.
-      def declaration_for(key)
-        Declarations.lookup(parent.class.declarations, key) if parent.class.respond_to?(:declarations)
+      def declaring_class
+        parent.class
       end
 
       def cell_selector(key)
         declaration_for(key)
         sel(:table_cell, slug(key))
       end
-
-      def visibility_of(key, visible = nil)
-        Declarations.visibility(declaration_for(key), visible)
-      end
     end
 
     sections :rows, Row, :active_admin, :table_row
 
     # The row of the record with +record_id+.
+    # @raise [ArgumentError] when +record_id+ is not an Integer or a non-empty String
     # @return [Row]
     def row(record_id)
-      Row.new(self, find(:css, sel(:table_row_by_id, record_id)))
+      Row.new(self, find(:css, row_selector(record_id)))
     end
 
     # True when the body has the row of the record with +record_id+.
+    # @raise [ArgumentError] when +record_id+ is not an Integer or a non-empty String
     def has_row?(record_id, **options)
-      has_css?(sel(:table_row_by_id, record_id), **options)
+      has_css?(row_selector(record_id), **options)
     end
 
     # Waits until the body has no row of the record with +record_id+.
+    # @raise [ArgumentError] when +record_id+ is not an Integer or a non-empty String
     def has_no_row?(record_id, **options)
-      has_no_css?(sel(:table_row_by_id, record_id), **options)
+      has_no_css?(row_selector(record_id), **options)
     end
 
     # The non-empty header texts, as the driver reports them.
@@ -185,73 +102,106 @@ module ActiveAdminPageObjects
     # The selection and actions columns have no title and are left out.
     # @return [Array<String>]
     def column_keys
-      all(:active_admin, :table_header).filter_map { |th| column_key(th) unless th.text.strip.empty? }
+      all(:active_admin, :table_header).filter_map { |th| class_key(th, "col-") unless th.text.strip.empty? }
     end
 
     # True when the headers equal +names+, in order, ignoring case.
     # @raise [ArgumentError] when no names are given
     def has_header_names?(*names, **options)
-      raise ArgumentError, "no header names given" if names.empty?
-
-      eventually(**options) { header_names_match?(names) }
+      header_names_match?(true, names, **options)
     end
 
     # Waits until the headers differ from +names+.
     # @raise [ArgumentError] when no names are given
     def has_no_header_names?(*names, **options)
-      raise ArgumentError, "no header names given" if names.empty?
-
-      eventually(**options) { !header_names_match?(names) }
+      header_names_match?(false, names, **options)
     end
 
-    # True when every declared column in scope has exactly its declared
-    # header label. Columns that are not declared, and the column order, are
-    # not checked. +only+ and +except+ take declared keys. +visible+ is
-    # Capybara's option, for every column.
-    def has_declared_columns?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(true, exact: false, only: only, except: except, visible: visible, **options)
-    end
-
-    # Waits until a declared column in scope has another header label, or is missing.
-    def has_no_declared_columns?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(false, exact: false, only: only, except: except, visible: visible, **options)
-    end
-
-    # Like #has_declared_columns?, and the table has no column that is not
-    # declared, the selection and actions columns included.
-    def has_exact_columns?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(true, exact: true, only: only, except: except, visible: visible, **options)
-    end
-
-    # Waits until the columns differ from the declared ones.
-    def has_no_exact_columns?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(false, exact: true, only: only, except: except, visible: visible, **options)
-    end
+    # `has_declared_columns?`, `has_exact_columns?` and their `has_no_` forms.
+    # The exact ones count the selection and actions columns too; none checks
+    # the column order.
+    Declarations.define_predicates(self, :columns)
 
     # True when the body has +count+ rows, or any row when +count+ is nil.
     def has_rows?(count: nil, **options)
-      has_css?(sel(:table_row), **count_option(count), **options)
+      has_css?(sel(:table_row), **given(count: count), **options)
     end
 
     # Waits until the body has no rows, or not +count+ rows.
     def has_no_rows?(count: nil, **options)
-      has_no_css?(sel(:table_row), **count_option(count), **options)
+      has_no_css?(sel(:table_row), **given(count: count), **options)
+    end
+
+    # Clicks the header link of column +key+. With +direction+ (`:asc` or
+    # `:desc`) it clicks until the column is sorted that way: the first click
+    # on an unsorted column sorts descending.
+    # @raise [Capybara::ElementNotFound] when the column is not sortable
+    def sort_by(key, direction = nil)
+      declaration_for(key)
+      return click_sort_link(key) if direction.nil?
+
+      direction = checked_direction(direction)
+      2.times do
+        current = sort_direction(key)
+        break if current == direction
+
+        click_sort_link(key)
+        # The click reloads the page; wait for the header to show the new order.
+        eventually { sort_direction(key) != current } ||
+          raise(Capybara::ExpectationNotMet, "column #{key.inspect} kept its sort order after a click")
+      end
+    end
+
+    # The sorted column and its direction, e.g. `["name", :desc]`, or nil
+    # when no column is sorted.
+    # @return [Array(String, Symbol), nil]
+    def sorted_by
+      th = first(:active_admin, :table_sorted_header, minimum: 0, wait: false)
+      th && [class_key(th, "col-"), direction_of(th)]
+    end
+
+    # True when column +key+ has a sort link.
+    def has_sortable_column?(key)
+      has_css?(sel(:table_sortable_header, slug(key)), **visibility_of(key))
     end
 
     private
 
-    # Capybara reads `count: nil` as a count to match, so leave it out when unset.
-    def count_option(count)
-      count.nil? ? {} : { count: count }
+    # A record or nil in the selector would match no row, so `has_no_row?` would pass.
+    def row_selector(record_id)
+      unless record_id.is_a?(Integer) || (record_id.is_a?(String) && !record_id.empty?)
+        raise ArgumentError, "record id must be an Integer or a non-empty String, got #{record_id.inspect}"
+      end
+
+      sel(:table_row_by_id, record_id)
     end
 
-    def column_key(header)
-      header[:class].to_s.split.filter_map { |name| name[/\Acol-(.+)\z/, 1] }.first
+    def header_names_match?(expected, names, **options)
+      raise ArgumentError, "no header names given" if names.empty?
+
+      eventually(**options) { texts_match?(header_names, names) == expected }
     end
 
-    def header_names_match?(expected)
-      actual = header_names
-      actual.size == expected.size && actual.zip(expected).all? { |a, e| same_text?(a, e) }
+    def sortable_header(key)
+      find(:css, sel(:table_sortable_header, slug(key)))
+    end
+
+    def click_sort_link(key)
+      sortable_header(key).find(:active_admin, :table_sort_link).click
+    end
+
+    def sort_direction(key)
+      direction_of(sortable_header(key))
+    end
+
+    def checked_direction(direction)
+      return direction.to_sym if SORT_DIRECTIONS.include?(direction.to_sym)
+
+      raise ArgumentError, "direction must be one of #{SORT_DIRECTIONS.inspect}, got #{direction.inspect}"
+    end
+
+    def direction_of(header)
+      SORT_DIRECTIONS.find { |direction| class_names(header).include?("sorted-#{direction}") }
     end
 
     def declared_label_text(key, _declaration, **visibility)
@@ -259,7 +209,7 @@ module ActiveAdminPageObjects
     end
 
     def page_element_keys(**visibility)
-      all(:active_admin, :table_header, wait: false, **visibility).filter_map { |header| column_key(header) }
+      all(:active_admin, :table_header, wait: false, **visibility).filter_map { |header| class_key(header, "col-") }
     end
   end
 end

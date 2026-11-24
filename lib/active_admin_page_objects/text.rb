@@ -26,6 +26,13 @@ module ActiveAdminPageObjects
       expected.is_a?(Regexp) ? expected.match?(squish(actual)) : same_text?(actual, expected)
     end
 
+    # A date as the date inputs take it: "2026-01-31" for a Date or a Time,
+    # and the text of anything else.
+    # @return [String]
+    def iso_date(value)
+      value.respond_to?(:strftime) ? value.strftime("%Y-%m-%d") : value.to_s
+    end
+
     # The key ActiveAdmin writes into the `col-<key>` and `row-<key>` classes:
     # `"EXTERNAL ID"` and `:external_id` both become `"external_id"`.
     # @return [String]

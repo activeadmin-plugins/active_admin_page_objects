@@ -7,7 +7,8 @@ module ActiveAdminPageObjects
   # datepicker. The dates are typed in, not picked.
   class DateRangeFilter < Filter
     # Sets the range. Takes Date objects or ISO strings ("2026-01-31"); nil
-    # clears that end.
+    # or "" clears that end.
+    # @raise [Date::Error] for a string that is not an ISO date
     def set(from, to = nil)
       fill_date(from_input, from)
       fill_date(to_input, to)
@@ -34,14 +35,12 @@ module ActiveAdminPageObjects
     end
 
     def iso(value)
-      value.respond_to?(:strftime) ? value.strftime("%Y-%m-%d") : value.to_s
+      iso_date(value)
     end
 
     def fill_date(input, value)
-      input.set(iso(value.is_a?(String) ? Date.iso8601(value) : value))
-      # jQuery UI opens the datepicker when the input gets focus, over the
-      # buttons below; Escape closes it.
-      input.send_keys(:escape) if input[:class].to_s.split.include?("hasDatepicker")
+      value = Date.iso8601(value) if value.is_a?(String) && !value.empty?
+      type_date(input, iso(value))
     end
 
     def range_matches?(from, to)

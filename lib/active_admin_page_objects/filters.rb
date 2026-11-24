@@ -10,7 +10,23 @@ module ActiveAdminPageObjects
   #     filter :balance, "Balance", ActiveAdminPageObjects::NumericFilter
   #   end
   class Filters < Section
+    # The buttons of the filter form. Filters and FiltersFooter include it.
+    module Buttons
+      # Clicks the "Filter" button.
+      def submit
+        find(:active_admin, :filters_submit).click
+      end
+
+      # Clicks "Clear Filters". ActiveAdmin 3 clears in JavaScript, so this
+      # needs a JavaScript driver.
+      def clear
+        find(:active_admin, :filters_clear).click
+      end
+    end
+
     include Declarations
+    include Declarations::Typed
+    include Buttons
 
     selector_key :filters
 
@@ -37,54 +53,22 @@ module ActiveAdminPageObjects
     # The filter +name+: its declared class, or else the gem's class for the
     # input, e.g. a StringFilter for a string column. A hidden filter is found
     # with `visible: :all`.
-    # @raise [Capybara::ExpectationNotMet] when the page has a filter of
-    #   another class than the declared one
+    # @raise [DeclaredClassMismatch] when the page has a filter of another
+    #   class than the declared one
     # @return [Filter]
     def filter(name, visible: nil)
       declaration = declaration_for(name)
       wrapper = find(:css, sel(:filter, slug(name)), **Declarations.visibility(declaration, visible))
-      build_declared(name, declaration, filter_class_for(wrapper), wrapper)
+      build_declared(name, declaration, wrapper, Filter)
     end
 
-    # True when every declared filter in scope has exactly its declared
-    # label. +only+ and +except+ take declared names. +visible+ is Capybara's
-    # option, for every filter.
-    def has_declared_filters?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(true, exact: false, only: only, except: except, visible: visible, **options)
-    end
-
-    # Waits until a declared filter in scope has another label, or is missing.
-    def has_no_declared_filters?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(false, exact: false, only: only, except: except, visible: visible, **options)
-    end
-
-    # Like #has_declared_filters?, and the page has no filter that is not declared.
-    def has_exact_filters?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(true, exact: true, only: only, except: except, visible: visible, **options)
-    end
-
-    # Waits until the filters differ from the declared ones.
-    def has_no_exact_filters?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(false, exact: true, only: only, except: except, visible: visible, **options)
-    end
-
-    # Clicks the "Filter" button.
-    def submit
-      find(:active_admin, :filters_submit).click
-    end
-
-    # Clicks "Clear Filters". ActiveAdmin 3 clears in JavaScript, so this
-    # needs a JavaScript driver.
-    def clear
-      find(:active_admin, :filters_clear).click
-    end
+    # `has_declared_filters?`, `has_exact_filters?` and their `has_no_` forms.
+    Declarations.define_predicates(self, :filters)
 
     private
 
-    # The gem's class for the wrapper's formtastic class, or Filter.
-    def filter_class_for(wrapper)
-      input_class = (FILTER_CLASSES.keys & wrapper[:class].to_s.split).first
-      input_class ? ActiveAdminPageObjects.const_get(FILTER_CLASSES[input_class]) : Filter
+    def detectable_classes
+      FILTER_CLASSES.transform_values { |name| ActiveAdminPageObjects.const_get(name) }
     end
 
     def declared_label_text(name, _declaration, **visibility)

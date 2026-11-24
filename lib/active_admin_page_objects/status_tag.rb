@@ -7,14 +7,42 @@ module ActiveAdminPageObjects
   class StatusTag < Section
     selector_key :status_tag
 
-    # `has_status_tag?` for the sections whose cells hold status tags.
+    # The status tags of a cell, for the sections whose cells hold them. The
+    # section names a cell by a key: it has `cell_selector(key)`, and
+    # `visibility_of(key, visible)` from Declarations::Lookup.
     module Matchers
+      # The status tag in the cell of +key+.
+      # @raise [Capybara::Ambiguous] when the cell has several: see #status_tags
+      # @return [StatusTag]
+      def status_tag(key, visible: nil)
+        visibility = visibility_of(key, visible)
+        StatusTag.new(self, find(:css, cell_selector(key), **visibility).find(:active_admin, :status_tag, **visibility))
+      end
+
+      # Every status tag in the cell of +key+, in page order.
+      # @return [Array<StatusTag>]
+      def status_tags(key, visible: nil)
+        status_tags_in(cell_selector(key), **visibility_of(key, visible))
+      end
+
+      # True when a status tag in the cell of +key+ has +label+, ignoring
+      # case, and every class of +type+.
+      def has_status_tag?(key, label, type: nil, **options)
+        status_tag_match?(true, key, label, type, **options)
+      end
+
+      # Waits until no status tag in the cell of +key+ is such a tag.
+      def has_no_status_tag?(key, label, type: nil, **options)
+        status_tag_match?(false, key, label, type, **options)
+      end
+
       private
 
-      # Waits until a status tag of the cell +cell_css+ has +label+ and +type+
-      # (+expected+ true), or none has. +visible+ is Capybara's option.
-      def status_tag_match?(expected, cell_css, label, type, **options)
-        visibility = Declarations.visibility(nil, options.delete(:visible))
+      # Waits until a status tag of the cell has +label+ and +type+ (+expected+
+      # true), or none has. `visible:` is Capybara's option.
+      def status_tag_match?(expected, key, label, type, **options)
+        cell_css = cell_selector(key)
+        visibility = visibility_of(key, options.delete(:visible))
         eventually(**options) do
           tags = status_tags_in(cell_css, **visibility)
           tags.any? { |tag| tag.match?(label, type: type) } == expected
@@ -70,7 +98,7 @@ module ActiveAdminPageObjects
     private
 
     def types
-      root_element[:class].to_s.split - ["status_tag"]
+      class_names(root_element) - ["status_tag"]
     end
 
     def type_match?(type)

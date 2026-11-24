@@ -22,7 +22,6 @@ RSpec.describe ActiveAdminPageObjects::Selectors do
   end
 
   it "has a selector for the components ActiveAdmin 4 removed" do
-    expect(described_class::DEFAULTS.values).not_to include(ActiveAdminPageObjects::REMOVED)
     expect(described_class::DEFAULTS.values_at(:tabs, :utility_navigation, :action_item_dropdown)).to all(be_a(String))
   end
 
