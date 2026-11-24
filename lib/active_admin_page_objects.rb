@@ -13,7 +13,7 @@ module ActiveAdminPageObjects
   extend Text
 
   # Raises unless the loaded gem satisfies +requirements+. Plugins call it when
-  # their page objects load, e.g. `check_version!(">= 2.0.0.a", "< 3", plugin: "my_plugin")`.
+  # their page objects load, e.g. `check_version!(">= 2.0.0.a", "< 3.0.0.a", plugin: "my_plugin")`.
   def self.check_version!(*requirements, plugin:)
     return if Gem::Requirement.new(*requirements).satisfied_by?(Gem::Version.new(VERSION))
 

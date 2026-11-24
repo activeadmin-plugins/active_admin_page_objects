@@ -30,6 +30,8 @@ module ActiveAdminPageObjects
 
     # One `<tr>` of the table body.
     class Row < Section
+      include Declarations::Lookup
+
       # The record id from the row's `id="<resource>_<id>"`.
       # @return [String]
       def record_id
@@ -61,36 +63,35 @@ module ActiveAdminPageObjects
       private
 
       # The columns are declared on the table the row belongs to.
-      def declaration_for(key)
-        Declarations.lookup(parent.class.declarations, key) if parent.class.respond_to?(:declarations)
+      def declaring_class
+        parent.class
       end
 
       def cell_selector(key)
         declaration_for(key)
         sel(:table_cell, slug(key))
       end
-
-      def visibility_of(key, visible = nil)
-        Declarations.visibility(declaration_for(key), visible)
-      end
     end
 
     sections :rows, Row, :active_admin, :table_row
 
     # The row of the record with +record_id+.
+    # @raise [ArgumentError] when +record_id+ is not an Integer or a non-empty String
     # @return [Row]
     def row(record_id)
-      Row.new(self, find(:css, sel(:table_row_by_id, record_id)))
+      Row.new(self, find(:css, row_selector(record_id)))
     end
 
     # True when the body has the row of the record with +record_id+.
+    # @raise [ArgumentError] when +record_id+ is not an Integer or a non-empty String
     def has_row?(record_id, **options)
-      has_css?(sel(:table_row_by_id, record_id), **options)
+      has_css?(row_selector(record_id), **options)
     end
 
     # Waits until the body has no row of the record with +record_id+.
+    # @raise [ArgumentError] when +record_id+ is not an Integer or a non-empty String
     def has_no_row?(record_id, **options)
-      has_no_css?(sel(:table_row_by_id, record_id), **options)
+      has_no_css?(row_selector(record_id), **options)
     end
 
     # The non-empty header texts, as the driver reports them (Chrome reports
@@ -109,63 +110,45 @@ module ActiveAdminPageObjects
     # True when the headers equal +names+, in order, ignoring case.
     # @raise [ArgumentError] when no names are given
     def has_header_names?(*names, **options)
-      raise ArgumentError, "no header names given" if names.empty?
-
-      eventually(**options) { header_names_match?(names) }
+      header_names_match?(true, names, **options)
     end
 
     # Waits until the headers differ from +names+.
     # @raise [ArgumentError] when no names are given
     def has_no_header_names?(*names, **options)
-      raise ArgumentError, "no header names given" if names.empty?
-
-      eventually(**options) { !header_names_match?(names) }
+      header_names_match?(false, names, **options)
     end
 
-    # True when every declared column in scope has exactly its declared
-    # header label. Columns that are not declared, and the column order, are
-    # not checked. +only+ and +except+ take declared keys. +visible+ is
-    # Capybara's option, for every column.
-    def has_declared_columns?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(true, exact: false, only: only, except: except, visible: visible, **options)
-    end
-
-    # Waits until a declared column in scope has another header label, or is missing.
-    def has_no_declared_columns?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(false, exact: false, only: only, except: except, visible: visible, **options)
-    end
-
-    # Like #has_declared_columns?, and the table has no column that is not
-    # declared, the selection and actions columns included.
-    def has_exact_columns?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(true, exact: true, only: only, except: except, visible: visible, **options)
-    end
-
-    # Waits until the columns differ from the declared ones.
-    def has_no_exact_columns?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(false, exact: true, only: only, except: except, visible: visible, **options)
-    end
+    # `has_declared_columns?`, `has_exact_columns?` and their `has_no_` forms.
+    # The exact ones count the selection and actions columns too; none checks
+    # the column order.
+    Declarations.define_predicates(self, :columns)
 
     # True when the body has +count+ rows, or any row when +count+ is nil.
     def has_rows?(count: nil, **options)
-      has_css?(sel(:table_row), **count_option(count), **options)
+      has_css?(sel(:table_row), **given(count: count), **options)
     end
 
     # Waits until the body has no rows, or not +count+ rows.
     def has_no_rows?(count: nil, **options)
-      has_no_css?(sel(:table_row), **count_option(count), **options)
+      has_no_css?(sel(:table_row), **given(count: count), **options)
     end
 
     private
 
-    # Capybara reads `count: nil` as a count to match, so leave it out when unset.
-    def count_option(count)
-      count.nil? ? {} : { count: count }
+    # A record or nil in the selector would match no row, so `has_no_row?` would pass.
+    def row_selector(record_id)
+      unless record_id.is_a?(Integer) || (record_id.is_a?(String) && !record_id.empty?)
+        raise ArgumentError, "record id must be an Integer or a non-empty String, got #{record_id.inspect}"
+      end
+
+      sel(:table_row_by_id, record_id)
     end
 
-    def header_names_match?(expected)
-      actual = header_names
-      actual.size == expected.size && actual.zip(expected).all? { |a, e| same_text?(a, e) }
+    def header_names_match?(expected, names, **options)
+      raise ArgumentError, "no header names given" if names.empty?
+
+      eventually(**options) { texts_match?(header_names, names) == expected }
     end
 
     def declared_label_text(key, _declaration, **visibility)

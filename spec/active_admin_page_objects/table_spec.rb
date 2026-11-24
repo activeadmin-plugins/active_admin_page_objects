@@ -109,7 +109,17 @@ RSpec.describe ActiveAdminPageObjects::Table do
       expect(table).to have_no_row(customers.last.id + 1)
       expect(table).to have_row(customers.first.id, text: customers.first.name)
       expect(table).to have_no_row(customers.first.id, text: "No such customer")
+      expect(table.has_no_row?(customers.first.id, wait: 0)).to be(false)
       expect(table.has_row?(customers.last.id + 1, wait: 0)).to be(false)
+    end
+
+    # A record or nil in the selector matches no row, so has_no_row? would pass.
+    it "rejects a record id that is not an Integer or a non-empty String" do
+      message = /record id must be an Integer or a non-empty String/
+      expect { table.has_no_row?(customers.first) }.to raise_error(ArgumentError, message)
+      expect { table.has_no_row?(nil) }.to raise_error(ArgumentError, message)
+      expect { table.has_row?("") }.to raise_error(ArgumentError, message)
+      expect { table.row(customers.first) }.to raise_error(ArgumentError, message)
       expect(table.has_no_row?(customers.first.id, wait: 0)).to be(false)
     end
 

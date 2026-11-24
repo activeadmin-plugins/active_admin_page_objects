@@ -3,7 +3,7 @@
 ActiveAdmin.register Order do
   menu parent: "Catalog"
 
-  filter :reference
+  filter :reference, filters: %i[not_eq eq]
   filter :quantity
   filter :customer
   filter :state, as: :select, collection: Order::STATES

@@ -51,14 +51,22 @@ module ActiveAdminPageObjects
     end
 
     def selected_label(select)
-      select.find("option[value=\"#{select.value}\"]", visible: :all).text(:all).strip
+      option_text(select, select.value)
     end
 
     def predicate_label(predicate)
       return predicate unless predicate.is_a?(Symbol)
 
-      option = predicate_scope.first("option[value$=\"_#{predicate}\"]", visible: :all, minimum: 0)
+      option = predicate_scope.first(predicate_option_css(predicate), visible: :all, minimum: 0)
       option ? option.text(:all).strip : raise(ArgumentError, "no #{predicate.inspect} predicate in #{self.class}")
+    end
+
+    # ActiveAdmin writes the option values `<attribute>_<predicate>`. The whole
+    # value keeps `:eq` from taking `name_not_eq`; a wrapper without the
+    # `q_<attribute>_input` id is matched by the suffix.
+    def predicate_option_css(predicate)
+      attribute = root_element[:id].to_s[/\Aq_(.+)_input\z/, 1]
+      attribute ? %(option[value="#{attribute}_#{predicate}"]) : %(option[value$="_#{predicate}"])
     end
 
     def value_matches?(value, predicate)

@@ -3,6 +3,10 @@
 module ActiveAdminPageObjects
   # Base class for the gem's sections. Subclass it, or any section, to extend.
   class Section < SitePrism::Section
+    include Text
+
+    private(*Text.instance_methods)
+
     class << self
       # Sets the default locator to the selector-map entry +key+, resolved
       # when the section is found.
@@ -17,16 +21,19 @@ module ActiveAdminPageObjects
       ActiveAdminPageObjects.selector(key, *args)
     end
 
-    def slug(key)
-      ActiveAdminPageObjects.slug(key)
+    # The options that are set. Capybara reads `count: nil` and `text: nil`
+    # as values to match, so an unset option is left out.
+    def given(**options)
+      options.compact
     end
 
-    def same_text?(actual, expected)
-      ActiveAdminPageObjects.same_text?(actual, expected)
+    def class_names(node)
+      node[:class].to_s.split
     end
 
-    def text_match?(actual, expected)
-      ActiveAdminPageObjects.text_match?(actual, expected)
+    # True when +actual+ holds the +expected+ texts, in order, ignoring case.
+    def texts_match?(actual, expected)
+      actual.size == expected.size && actual.zip(expected).all? { |a, e| same_text?(a, e) }
     end
 
     # JavaScript drivers return the resolved `href` property; the attribute is what the page wrote.
@@ -36,13 +43,10 @@ module ActiveAdminPageObjects
       link[:href].to_s
     end
 
-    def squish(text)
-      ActiveAdminPageObjects.squish(text)
-    end
-
-    # Retries the block until it is truthy or Capybara's wait time runs out.
+    # Retries the block until it is truthy or the wait time runs out.
+    # Capybara's synchronize takes `false` as a number, so it becomes 0 here.
     def eventually(wait: Capybara.default_max_wait_time)
-      root_element.synchronize(wait) do
+      root_element.synchronize(wait == false ? 0 : wait) do
         yield || raise(Capybara::ExpectationNotMet)
       end
       true

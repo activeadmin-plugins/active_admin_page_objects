@@ -32,7 +32,7 @@ module ActiveAdminPageObjects
     private_constant :FIELD_CLASSES
 
     def self.included(base)
-      base.include(Declarations, States)
+      base.include(Declarations, Declarations::Typed, States)
       base.extend(ClassMethods)
     end
 
@@ -41,19 +41,19 @@ module ActiveAdminPageObjects
       # +type+. +name+ is the formtastic attribute. +visible+ is the Capybara
       # option the field is found with, e.g. `:all` for a field that may be hidden.
       def field(name, label, type, visible: nil)
-        declare_typed(:field, name, label, type: type, visible: visible)
+        declare_typed(:field, name, label, type: type, kind: :field, visible: visible)
       end
     end
 
     # The field +name+: its declared class, or else the gem's class for the
     # wrapper's formtastic class, e.g. a SelectField for `as: :select`. A
     # hidden field is found with `visible: :all`.
-    # @raise [Capybara::ExpectationNotMet] when the page has a field of
-    #   another class than the declared one
+    # @raise [DeclaredClassMismatch] when the page has a field of another
+    #   class than the declared one
     # @return [Form::Field]
     def field(name, visible: nil)
       wrapper = find(:css, field_selector(name), **visibility_of(name, visible))
-      build_declared(name, declaration_for(name), detected_field_class(wrapper), wrapper)
+      build_declared(name, declaration_for(name), wrapper, Form::Field)
     end
 
     # Fills each field with its value, in the given order: `fill(name: "Acme", active: false)`.
@@ -63,12 +63,12 @@ module ActiveAdminPageObjects
 
     # True when the field +name+ shows an inline error containing +text+.
     def has_field_error?(name, text = nil, **options)
-      has_css?(field_error_selector(name), **field_error_options(name, text, options))
+      has_css?(field_error_selector(name), **visibility_of(name), **given(text: text), **options)
     end
 
     # Waits until the field +name+ shows no such inline error.
     def has_no_field_error?(name, text = nil, **options)
-      has_no_css?(field_error_selector(name), **field_error_options(name, text, options))
+      has_no_css?(field_error_selector(name), **visibility_of(name), **given(text: text), **options)
     end
 
     # True when any field shows an inline error.
@@ -86,14 +86,21 @@ module ActiveAdminPageObjects
     # a field name, so there is no `visible:` option: a hidden field counts
     # only when it is declared with `visible:`.
     def has_exact_field_errors?(**errors)
-      expected = expected_field_errors(errors)
-      eventually { (@last_field_errors = shown_field_errors) == expected }
+      exact_field_errors?(true, errors)
     end
 
     # Waits until the inline errors differ from +errors+.
     def has_no_exact_field_errors?(**errors)
-      expected = expected_field_errors(errors)
-      eventually { (@last_field_errors = shown_field_errors) != expected }
+      exact_field_errors?(false, errors)
+    end
+
+    # +errors+ as the exact matchers compare them: attribute => squished
+    # messages, without the fields that expect none.
+    # @api private
+    # @return [Hash{String => Array<String>}]
+    def field_error_expectation(errors)
+      expected = errors.to_h { |name, messages| [field_key(name), Array(messages).map { |message| squish(message) }] }
+      expected.reject { |_key, messages| messages.empty? }
     end
 
     # The inline errors the last `has_exact_field_errors?` or
@@ -102,34 +109,21 @@ module ActiveAdminPageObjects
     # @return [Hash{String => Array<String>}, nil] attribute => sorted texts
     attr_reader :last_field_errors
 
-    # True when every declared field in scope has exactly its declared label.
-    # The required marker is not part of the label. +only+ and +except+ take
-    # declared names. +visible+ is Capybara's option, for every field.
-    def has_declared_fields?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(true, exact: false, only: only, except: except, visible: visible, **options)
-    end
-
-    # Waits until a declared field in scope has another label, or is missing.
-    def has_no_declared_fields?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(false, exact: false, only: only, except: except, visible: visible, **options)
-    end
-
-    # Like #has_declared_fields?, and the page has no field that is not declared.
-    def has_exact_fields?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(true, exact: true, only: only, except: except, visible: visible, **options)
-    end
-
-    # Waits until the fields differ from the declared ones.
-    def has_no_exact_fields?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(false, exact: true, only: only, except: except, visible: visible, **options)
-    end
+    # `has_declared_fields?`, `has_exact_fields?` and their `has_no_` forms.
+    # The required marker is not part of a label.
+    Declarations.define_predicates(self, :fields)
 
     private
 
-    # The gem's class for the wrapper's formtastic class, or Form::Field.
-    def detected_field_class(wrapper)
-      input_class = (FIELD_CLASSES.keys & wrapper[:class].to_s.split).first
-      input_class ? Form.const_get(FIELD_CLASSES[input_class]) : Form::Field
+    def detectable_classes
+      FIELD_CLASSES.transform_values { |name| Form.const_get(name) }
+    end
+
+    # The `name` of the first namespaced control, which the id prefix of the
+    # wrappers is built from. That control may be hidden: a hidden input, or
+    # the `<select>` of a JavaScript select widget.
+    def first_control_name
+      find("input[name*='['], select[name*='['], textarea[name*='[']", match: :first, visible: :all)[:name]
     end
 
     # The attribute of the field +name+, checked against the declarations when fields are declared.
@@ -146,10 +140,6 @@ module ActiveAdminPageObjects
 
     def field_error_selector(name)
       "#{field_selector(name)} #{sel(:form_inline_error)}"
-    end
-
-    def field_error_options(name, text, options)
-      { **visibility_of(name), **(text ? { text: text } : {}), **options }
     end
 
     # The attributes of the input wrappers on the page.
@@ -177,9 +167,9 @@ module ActiveAdminPageObjects
       all(:css, "#{css} #{sel(:form_inline_error)}", wait: false, **visibility).map { |error| squish(text_of(error, visibility)) }
     end
 
-    def expected_field_errors(errors)
-      expected = errors.to_h { |name, messages| [field_key(name), Array(messages).map { |message| squish(message) }.sort] }
-      expected.reject { |_key, messages| messages.empty? }
+    def exact_field_errors?(expected, errors)
+      errors = field_error_expectation(errors).transform_values(&:sort)
+      eventually { ((@last_field_errors = shown_field_errors) == errors) == expected }
     end
 
     def declared_label_text(name, _declaration, **visibility)

@@ -43,6 +43,17 @@ RSpec.describe ActiveAdminPageObjects::Fields, "disabled fields" do
       expect(declared.has_disabled_field?(:code, wait: 0)).to be(false)
     end
 
+    it "raises at once when the page has a field of another class than the declared one" do
+      mistyped = Class.new(ActiveAdminPageObjects::Form) do
+        field :code, "Code", ActiveAdminPageObjects::Form::SelectField
+      end.new(form_page, form.root_element)
+      message = /:code is declared as .*SelectField, but the page has .*StringField/
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      expect { mistyped.has_disabled_field?(:code) }.to raise_error(ActiveAdminPageObjects::DeclaredClassMismatch, message)
+      expect { mistyped.has_no_enabled_field?(:code) }.to raise_error(Capybara::ExpectationNotMet, message)
+      expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < Capybara.default_max_wait_time
+    end
+
     it "rejects an undeclared name before it queries the page" do
       message = /:secret is not declared/
       expect { form.has_disabled_field?(:secret) }.to raise_error(ArgumentError, message)

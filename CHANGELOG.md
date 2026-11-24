@@ -1,9 +1,13 @@
 # Changelog
 
-## Unreleased
+## 2.0.0.alpha
 
 ### Added
 
+- Arguments that would make a matcher pass on any page raise `ArgumentError`: a record id that is not an Integer or a non-empty String in `Table#row`, `#has_row?` and `#has_no_row?`, an `only:` or `except:` scope that leaves no declared name, and a flash type of `nil`.
+- `MainMenu#has_item?` and `#has_no_item?` wait, and take `wait:`.
+- `DateRangeFilter#set` clears an end for `""` as for `nil`.
+- `have_table` from `ActiveAdminPageObjects::RSpec::Matchers` calls the page object only when it defines `has_table?` itself, as `section :table` does; Capybara's own `has_table?` does not count.
 - `Form::FileField` for formtastic's `file` input: `fill(path)` attaches the file, and `form.fill(attachment: path)` works. `Form#field` returns it by the input class.
 - Disabled fields: `Form::Field#disabled?` and `#enabled?` on every field type, and `have_disabled_field(name)` and `have_enabled_field(name)` with their `have_no_` forms on a form.
 - `Table#has_row?(record_id)` and `#has_no_row?(record_id)`: `expect(table).to have_row(customer.id)`.
@@ -14,7 +18,7 @@
 - Lookups and matchers see only visible elements, as Capybara does by default. `visible: :all` on a call takes hidden elements too: `form.field(:notes, visible: :all)`, `have_exact_fields(visible: :all)`, `exact_mismatches(visible: :all)`. `visible: :all` on a declaration makes it the default for that element: `field :notes, "Notes", ActiveAdminPageObjects::Form::StringField, visible: :all`.
 - Failure messages: with `ActiveAdminPageObjects::RSpec::Matchers` included, the `have_declared_*` and `have_exact_*` matchers and their `have_no_` forms list the missing elements, the unexpected elements and the labels that differ. `have_exact_field_errors` and `have_exact_semantic_errors` list the missing and the unexpected messages. `last_mismatches`, `last_field_errors` and `last_semantic_errors` return what the last of these matchers found.
 - The untitled selection and actions columns of an index table are the columns `selectable` and `actions`, declared with the label `""`. ActiveAdmin 4 gives them no `data-column`.
-- `Filters#filter` and `Form#field` return an instance of the declared class, and raise `Capybara::ExpectationNotMet` unless it is the detected class or a subclass of it. To use your own field or filter class, declare it. A declaration defines no method on the section: reach it with `form.field(:name)` or `filters.filter(:name)`, and write your own methods in the section block for shortcuts.
+- `Filters#filter` and `Form#field` return an instance of the declared class, and raise `ActiveAdminPageObjects::DeclaredClassMismatch`, a `Capybara::ExpectationNotMet`, unless it is the detected class or a subclass of it. `have_disabled_field` and `have_enabled_field` raise it too. To use your own field or filter class, declare it. A declaration defines no method on the section: reach it with `form.field(:name)` or `filters.filter(:name)`, and write your own methods in the section block for shortcuts.
 - A section with declarations raises `ArgumentError` for an undeclared name before it queries the page.
 - Typed form fields: `Form#field` returns `Form::StringField`, `SelectField`, `BooleanField`, `RadioField`, `CheckBoxesField` or `DatePickerField` by the formtastic input class. Each has a `fill(value)` for its type. `DatePickerField` is the `date_picker` input, a native `<input type="date">`. `form.fill(name: "Acme", active: false)` fills several fields in the given order.
 - Form errors: `have_field_error`, `have_field_errors`, `have_exact_field_errors`, `have_semantic_errors` and `have_exact_semantic_errors(*messages, strict_order: false)`, each with its `have_no_` form.

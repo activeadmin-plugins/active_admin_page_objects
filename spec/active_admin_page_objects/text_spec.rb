@@ -23,12 +23,33 @@ RSpec.describe ActiveAdminPageObjects::Text do
     expect(ActiveAdminPageObjects.slug(:external_id)).to eq("external_id")
     expect(ActiveAdminPageObjects.slug("Signed up")).to eq("signed_up")
   end
+
+  it "slugs a key whose text has no parameterize, as without ActiveSupport" do
+    plain = +" External ID (new) "
+    plain.singleton_class.undef_method(:parameterize)
+    key = Object.new
+    key.define_singleton_method(:to_s) { plain }
+    expect(ActiveAdminPageObjects.slug(key)).to eq("external_id_new")
+  end
+
+  it "formats a date for the date inputs" do
+    expect(ActiveAdminPageObjects.iso_date(Date.new(2026, 1, 31))).to eq("2026-01-31")
+    expect(ActiveAdminPageObjects.iso_date(Time.utc(2026, 1, 31, 12))).to eq("2026-01-31")
+    expect(ActiveAdminPageObjects.iso_date("2026-01-31")).to eq("2026-01-31")
+    expect(ActiveAdminPageObjects.iso_date(nil)).to eq("")
+  end
 end
 
 RSpec.describe ActiveAdminPageObjects do
   describe ".check_version!" do
     it "passes for a satisfied requirement" do
-      expect { described_class.check_version!(">= 2.0.0.a", "< 3", plugin: "demo") }.not_to raise_error
+      expect { described_class.check_version!(">= 2.0.0.a", "< 3.0.0.a", plugin: "demo") }.not_to raise_error
+    end
+
+    it "keeps the 3.x prereleases out with an upper bound of 3.0.0.a" do
+      stub_const("ActiveAdminPageObjects::VERSION", "3.0.0.alpha")
+      expect { described_class.check_version!(">= 2.0.0.a", "< 3.0.0.a", plugin: "demo") }
+        .to raise_error(ActiveAdminPageObjects::IncompatibleVersion)
     end
 
     it "raises for an unsatisfied requirement" do

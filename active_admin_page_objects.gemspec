@@ -14,7 +14,7 @@ Gem::Specification.new do |spec|
                      "instead of CSS selectors."
   spec.homepage = "https://github.com/senid231/active_admin_page_objects"
   spec.license = "MIT"
-  spec.required_ruby_version = ">= 3.1"
+  spec.required_ruby_version = ">= 3.3"
 
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = spec.homepage

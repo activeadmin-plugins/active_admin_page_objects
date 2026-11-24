@@ -6,6 +6,10 @@ module ActiveAdminPageObjects
   # The page object drives a feature that ActiveAdmin 4 no longer renders.
   class RemovedInActiveAdmin4 < Error; end
 
+  # The page has an element of another class than the declared one. Field
+  # and filter lookups raise it.
+  class DeclaredClassMismatch < Capybara::ExpectationNotMet; end
+
   # A plugin's page objects need another version of this gem.
   class IncompatibleVersion < Error; end
 end

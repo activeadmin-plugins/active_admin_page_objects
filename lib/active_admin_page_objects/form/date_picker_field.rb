@@ -8,7 +8,7 @@ module ActiveAdminPageObjects
     class DatePickerField < StringField
       # Sets the date: a Date, or a string such as "2026-01-31".
       def fill(value)
-        input.set(value.respond_to?(:strftime) ? value.strftime("%Y-%m-%d") : value.to_s)
+        input.set(iso_date(value))
       end
     end
   end

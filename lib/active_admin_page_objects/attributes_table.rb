@@ -45,27 +45,8 @@ module ActiveAdminPageObjects
       text_of(find(:css, cell_selector(key), **visibility), visibility).strip
     end
 
-    # True when every declared row in scope has exactly its declared label.
-    # +only+ and +except+ take declared keys. +visible+ is Capybara's option,
-    # for every row.
-    def has_declared_rows?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(true, exact: false, only: only, except: except, visible: visible, **options)
-    end
-
-    # Waits until a declared row in scope has another label, or is missing.
-    def has_no_declared_rows?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(false, exact: false, only: only, except: except, visible: visible, **options)
-    end
-
-    # Like #has_declared_rows?, and the table has no row that is not declared.
-    def has_exact_rows?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(true, exact: true, only: only, except: except, visible: visible, **options)
-    end
-
-    # Waits until the rows differ from the declared ones.
-    def has_no_exact_rows?(only: nil, except: nil, visible: nil, **options)
-      declared_match?(false, exact: true, only: only, except: except, visible: visible, **options)
-    end
+    # `has_declared_rows?`, `has_exact_rows?` and their `has_no_` forms.
+    Declarations.define_predicates(self, :rows)
 
     private
 

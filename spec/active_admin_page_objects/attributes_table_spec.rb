@@ -159,6 +159,16 @@ RSpec.describe ActiveAdminPageObjects::AttributesTable do
       expect { strict.value(:notes) }.to raise_error(ArgumentError, message)
     end
 
+    # An empty scope compares nothing, so every matcher would pass on any page.
+    it "rejects a scope that leaves no declared row" do
+      strict = strict_class.new(nil, nil)
+      message = /leave no declared name to compare/
+      expect { strict.has_exact_rows?(only: []) }.to raise_error(ArgumentError, message)
+      expect { strict.has_no_exact_rows?(only: []) }.to raise_error(ArgumentError, message)
+      expect { strict.has_declared_rows?(except: %i[name external_id]) }.to raise_error(ArgumentError, message)
+      expect { strict.declared_label_mismatches(only: []) }.to raise_error(ArgumentError, message)
+    end
+
     it "requires a label" do
       expect { Class.new(described_class) { row :notes } }.to raise_error(ArgumentError)
     end

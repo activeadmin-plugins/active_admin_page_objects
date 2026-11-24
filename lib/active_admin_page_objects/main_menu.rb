@@ -38,13 +38,13 @@ module ActiveAdminPageObjects
     end
 
     # True when the menu has an item at the label path +labels+.
-    def has_item?(*labels)
-      !find_item(labels).nil?
+    def has_item?(*labels, **options)
+      eventually(**options) { find_item(labels) }
     end
 
-    # True when the menu has no item at the label path +labels+.
-    def has_no_item?(*labels)
-      find_item(labels).nil?
+    # Waits until the menu has no item at the label path +labels+.
+    def has_no_item?(*labels, **options)
+      eventually(**options) { find_item(labels).nil? }
     end
 
     # The labels of the top-level items, or of the submenu at the label path

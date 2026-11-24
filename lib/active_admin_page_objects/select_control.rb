@@ -21,8 +21,7 @@ module ActiveAdminPageObjects
 
     # The `visible:` option of a native <select> lookup, as a hash.
     def native_select_lookup
-      visible = native_select_visibility
-      visible.nil? ? {} : { visible: visible }
+      Declarations.visible_option(native_select_visibility)
     end
 
     # True when a native <select> lookup takes +select+. A widget may hide its
@@ -62,6 +61,12 @@ module ActiveAdminPageObjects
 
     def option_not_offered?(scope, label)
       native_select(scope).has_no_css?("option", exact_text: label, visible: :all)
+    end
+
+    # The text of the option of +select+ with the value +value+.
+    def option_text(select, value)
+      escaped = value.to_s.gsub(/["\\]/) { |char| "\\#{char}" }
+      select.find(%(option[value="#{escaped}"]), visible: :all).text(:all).strip
     end
 
     def control_disabled?(scope)

@@ -25,8 +25,11 @@ module ActiveAdminPageObjects
       include SelectControl
 
       # Sets the field: types text, picks a select option by label, or ticks a checkbox for `true`.
+      # @raise [Capybara::ElementNotFound] when the field has a select that is hidden or `aria-hidden`
       def fill(value)
-        if has_css?("select", wait: false, **native_select_lookup) { |select| native_select_shown?(select) }
+        # A hidden select goes to #choose_option too, which raises: the
+        # fillable field next to it is a widget's search box.
+        if has_css?("select", visible: :all, wait: false)
           choose_option(root_element, value.to_s)
         elsif has_css?("input[type=checkbox]", wait: false) && [true, false].include?(value)
           find("input[type=checkbox]").set(value)
@@ -118,6 +121,13 @@ module ActiveAdminPageObjects
       all(:active_admin, :form_semantic_error, wait: false).map { |el| el.text.strip }
     end
 
+    # +messages+ as the exact matchers compare them: squished.
+    # @api private
+    # @return [Array<String>]
+    def semantic_error_expectation(messages)
+      messages.map { |text| squish(text) }
+    end
+
     # The base errors the last `has_exact_semantic_errors?` or
     # `has_no_exact_semantic_errors?` call found on its last try, in page
     # order, or nil before the first call. The RSpec matchers build their
@@ -128,15 +138,13 @@ module ActiveAdminPageObjects
     private
 
     # Formtastic ids inputs `<object_name>_<attribute>_input`; the object name
-    # is the prefix of the first namespaced field name. That control may be
-    # hidden: a hidden input, or the `<select>` of a JavaScript select widget.
+    # is the prefix of the first namespaced field name.
     def field_prefix
-      field = find("input[name*='['], select[name*='['], textarea[name*='[']", match: :first, visible: :all)
-      field[:name][/\A[^\[]+/]
+      first_control_name[/\A[^\[]+/]
     end
 
     def exact_semantic_errors?(messages, strict_order)
-      actual, expected = [semantic_errors, messages].map { |texts| texts.map { |text| squish(text) } }
+      actual, expected = [semantic_errors, messages].map { |texts| semantic_error_expectation(texts) }
       @last_semantic_errors = actual
       strict_order ? actual == expected : actual.sort == expected.sort
     end

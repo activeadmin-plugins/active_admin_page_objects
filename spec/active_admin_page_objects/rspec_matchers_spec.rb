@@ -37,10 +37,19 @@ RSpec.describe ActiveAdminPageObjects::RSpec::Matchers do
     form_page.form.submit
   end
 
+  # Every `def have_*` under lib/capybara/active_admin/matchers of the capybara_active_admin v1.0.0 tag.
   it "names every matcher of capybara_active_admin 1.0.0" do
-    expect(described_class::NAMES.size).to eq(24)
+    capybara_active_admin = %i[
+      have_attributes_table have_attribute_row
+      have_form_error have_no_form_errors have_semantic_error have_semantic_errors have_has_many_fields_for
+      have_fields_date_range have_submit_input
+      have_action_item have_action_item_link have_page_title have_flash_message have_footer have_panel have_sidebar
+      have_batch_action have_status_tag
+      have_table have_table_row have_table_header have_table_cell have_table_scopes have_table_scope
+    ]
+    expect(described_class::NAMES).to match_array(capybara_active_admin)
     detailed = described_class::DECLARED_NAMES + described_class::ERROR_MATCHERS.keys
-    expect(described_class.public_instance_methods - detailed).to match_array(described_class::NAMES)
+    expect(described_class.public_instance_methods - detailed).to match_array(capybara_active_admin)
   end
 
   it "names the declared and the exact matchers of the four sections, and the exact error matchers" do
@@ -92,6 +101,17 @@ RSpec.describe ActiveAdminPageObjects::RSpec::Matchers do
       expect(page).to have_status_tag(:no, text: /no/i)
       expect(page).not_to have_status_tag(:yes)
       expect(page).not_to have_flash_message("Saved", wait: 0)
+    end
+
+    # Capybara's has_table? reaches every page object, and passes on any <table>.
+    it "uses the other library's matcher for have_table on a page object without a table section" do
+      show = Pages::CustomerShow.new
+      show.load(id: customer.id)
+      expect(show).to have_css(".attributes-table table")
+      expect(show).not_to have_table
+      expect { expect(show).to have_table(wait: 0) }
+        .to raise_error(RSpec::Expectations::ExpectationNotMetError, /expected to find .*table\.data-table/)
+      expect(show.attributes_table).not_to have_table
     end
 
     it "uses the other library's matcher on a page object without the predicate" do

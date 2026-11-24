@@ -23,5 +23,8 @@ RSpec.describe ActiveAdminPageObjects::Flashes do
 
   it "rejects a type ActiveAdmin does not render" do
     expect { index.flashes.has_flash?(:warning) }.to raise_error(ArgumentError, /flash type/)
+    expect { index.flashes.has_flash?(nil) }.to raise_error(ArgumentError, /flash type must be one of .*got nil/)
+    expect { index.flashes.has_no_flash?(nil) }.to raise_error(ArgumentError, /flash type/)
+    expect { index.flashes.messages(42) }.to raise_error(ArgumentError, /got 42/)
   end
 end

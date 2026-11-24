@@ -6,7 +6,8 @@ module ActiveAdminPageObjects
   # A date range filter: "from" and "to" date inputs.
   class DateRangeFilter < Filter
     # Sets the range. Takes Date objects or ISO strings ("2026-01-31"); nil
-    # clears that end.
+    # or "" clears that end.
+    # @raise [Date::Error] for a string that is not an ISO date
     def set(from, to = nil)
       fill_date(from_input, from)
       fill_date(to_input, to)
@@ -33,11 +34,12 @@ module ActiveAdminPageObjects
     end
 
     def iso(value)
-      value.respond_to?(:strftime) ? value.strftime("%Y-%m-%d") : value.to_s
+      iso_date(value)
     end
 
     def fill_date(input, value)
-      input.set(value.respond_to?(:strftime) || value.nil? ? value : Date.iso8601(value.to_s))
+      value = nil if value == ""
+      input.set(value.nil? || value.respond_to?(:strftime) ? value : Date.iso8601(value.to_s))
     end
 
     def range_matches?(from, to)

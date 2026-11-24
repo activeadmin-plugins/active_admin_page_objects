@@ -136,6 +136,14 @@ RSpec.describe ActiveAdminPageObjects::Filters do
       expect(filters).to have_declared_filters(only: :created_at)
     end
 
+    it "keeps the words of a label that an appended control repeats" do
+      index.load
+      page.execute_script(<<~JS)
+        document.querySelector("#q_created_at_input label").insertAdjacentHTML("beforeend", ' <a href="#">at</a>')
+      JS
+      expect(filters).to have_declared_filters(only: :created_at)
+    end
+
     it "requires a label and a section class" do
       expect { Class.new(described_class) { filter :email } }.to raise_error(ArgumentError)
       expect { Class.new(described_class) { filter :email, "Email" } }.to raise_error(ArgumentError)
@@ -150,7 +158,7 @@ RSpec.describe ActiveAdminPageObjects::Filters do
       end
       expect(subclass.declarations.keys).to eq(%w[email external_id status])
       expect(subclass.declarations["email"])
-        .to eq(label: "E-mail", type: ActiveAdminPageObjects::StringFilter, kind: :filter)
+        .to eq(label: "E-mail", type: ActiveAdminPageObjects::StringFilter)
       expect(strict_class.declarations.keys).to eq(%w[email external_id])
       expect(strict_class.declarations["email"][:label]).to eq("Email")
       expect(described_class.declarations).to be_empty
@@ -223,7 +231,7 @@ RSpec.describe ActiveAdminPageObjects::Filters do
         filter :name, "Name", klass
         filter :email, "Email", klass, visible: :all
       end
-      expect(declared.class.declarations["email"]).to eq(label: "Email", type: klass, kind: :filter, visible: :all)
+      expect(declared.class.declarations["email"]).to eq(label: "Email", type: klass, visible: :all)
       expect(declared.filter(:email)).to be_an_instance_of(klass)
       expect(declared).to have_declared_filters
       expect(declared).to have_exact_filters(only: %i[name email])
@@ -262,6 +270,18 @@ RSpec.describe ActiveAdminPageObjects::Filters do
       expect(names).to contain_exactly("Alpha", "Alphabet")
       expect(index.name_filter).to have_value("Alpha")
       expect(index.name_filter).to have_no_value("Beta")
+    end
+
+    # `[value$="_eq"]` would take `reference_not_eq`, the first option of this filter.
+    it "takes the predicate whose whole name is the symbol" do
+      orders = Pages::OrderIndex.new
+      orders.load
+      reference = orders.filters.filter(:reference)
+      expect(reference.predicate).to eq("Not equal to")
+      reference.fill_in(with: "REF-1", predicate: :eq)
+      expect(reference.predicate).to eq("Equals")
+      expect(reference).to have_value("REF-1", predicate: :eq)
+      expect(reference.has_value?("REF-1", predicate: :not_eq, wait: 0)).to be(false)
     end
 
     it "raises for an unknown predicate symbol" do
@@ -435,6 +455,17 @@ RSpec.describe ActiveAdminPageObjects::Filters do
       expect(filters.filter(:created_at)).to have_range("2026-02-01", "2026-04-01")
       expect(filters.filter(:created_at)).to have_range(Date.new(2026, 2, 1), "2026-04-01")
       expect(filters.filter(:created_at)).to have_no_range("2026-02-01")
+    end
+
+    it "clears an end for nil and for an empty string" do
+      index.load
+      range = filters.filter(:created_at)
+      range.set("2026-02-01", "2026-04-01")
+      range.set("", nil)
+      expect(range).to have_range("", nil)
+      range.set("2026-02-01", "")
+      expect(range).to have_range("2026-02-01", "")
+      expect { range.set("yesterday") }.to raise_error(Date::Error)
     end
 
     it "leaves an open end" do

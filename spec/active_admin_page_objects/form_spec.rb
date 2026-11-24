@@ -447,6 +447,17 @@ RSpec.describe ActiveAdminPageObjects::Form do
         expect(page).to have_select("customer_status", selected: "pending", visible: :all)
       end
 
+      # A select widget puts a search box next to the select it hides.
+      it "is not passed over by a Field for a text input in the same wrapper" do
+        status = described_class::Field.new(form, form.field(:status).root_element)
+        send(hiding, "#customer_status")
+        page.execute_script(<<~JS)
+          document.querySelector("#customer_status_input").insertAdjacentHTML("beforeend", '<input type="text" id="status_search">')
+        JS
+        Capybara.using_wait_time(0) { expect { status.fill("closed") }.to raise_error(Capybara::ElementNotFound) }
+        expect(page).to have_field("status_search", with: "")
+      end
+
       it "is read by a field class that overrides native_select_visibility" do
         select_class = reading_hidden_select
         status = declared_form { field :status, "Status", select_class }.field(:status)

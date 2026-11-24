@@ -23,6 +23,9 @@ RSpec.describe ActiveAdminPageObjects::MainMenu do
       expect(dashboard.main_menu).to have_item("Tags")
       expect(dashboard.main_menu).to have_no_item("Catalog", "Tags")
       expect(dashboard.main_menu).to have_no_item("Reports")
+      expect(dashboard.main_menu.has_item?("Reports", wait: 0)).to be(false)
+      expect(dashboard.main_menu.has_no_item?("Tags", wait: 0)).to be(false)
+      expect { dashboard.main_menu.has_item? }.to raise_error(ArgumentError)
     end
 
     it "lists item labels" do

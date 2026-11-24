@@ -1,5 +1,5 @@
 AllCops:
-  TargetRubyVersion: 3.1
+  TargetRubyVersion: 3.3
   NewCops: enable
   SuggestExtensions: false
   Exclude:
@@ -12,6 +12,10 @@ Style/StringLiterals:
 
 Style/Documentation:
   Enabled: false
+
+# Public methods keep `**options` by name: the docs refer to it.
+Style/ArgumentsForwarding:
+  UseAnonymousForwarding: false
 
 Layout/LineLength:
   Max: 130
