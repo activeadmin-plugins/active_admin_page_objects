@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0.alpha
+## 1.0.0 (2026-11-24)
 
 ### Added
 
@@ -27,7 +27,7 @@
 - `Panel#links` and `Sidebar#links` list the links of the body as `{ text:, href: }`, with the href as a path.
 - `ActiveAdminPageObjects::RSpec::Matchers`, loaded with `require "active_admin_page_objects/rspec"`: the matcher names of capybara_active_admin 1.0.0, which call the predicate of a page object and that gem's matcher for anything else.
 - `MainMenu#labels(*parents)` lists the item labels at a menu level. `MainMenu#click(*labels)` hovers each parent and clicks the item's link, as a user does; it sees visible items only, so a hidden submenu raises `Capybara::ElementNotFound`. `go` still visits the link's URL.
-- Version 1.0.0.alpha: page objects for vanilla ActiveAdmin 3 only. The gem depends on `activeadmin` (>= 3.0, < 4.0.0.a). Vanilla ActiveAdmin 4 is the 2.x line on `main`.
+- Version 1.0.0: page objects for vanilla ActiveAdmin 3 only. The gem depends on `activeadmin` (>= 3.0, < 4.0.0.a). Vanilla ActiveAdmin 4 is the 2.x line on `main`.
 - SitePrism page and sections for vanilla ActiveAdmin 3: layout, breadcrumbs, action items, flashes, main menu, index table, attributes table, panel, filters (string, numeric, select, boolean, date range), scopes, pagination, batch actions and formtastic forms.
 - `HasMany`, reached with `form.has_many(:orders)`: count, add and remove fieldsets, and fill their fields.
 - `StatusTag`, reached with `row.status_tag(:status)` and `attributes_table.status_tag(:status)`.

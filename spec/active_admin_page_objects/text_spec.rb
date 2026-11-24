@@ -59,6 +59,6 @@ RSpec.describe ActiveAdminPageObjects do
   end
 
   it "has a version" do
-    expect(ActiveAdminPageObjects::VERSION).to eq("1.0.0.alpha")
+    expect(ActiveAdminPageObjects::VERSION).to eq("1.0.0")
   end
 end
