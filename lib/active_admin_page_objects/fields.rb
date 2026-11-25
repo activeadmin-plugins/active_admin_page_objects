@@ -116,7 +116,8 @@ module ActiveAdminPageObjects
     private
 
     def detectable_classes
-      FIELD_CLASSES.transform_values { |name| Form.const_get(name) }
+      builtin = FIELD_CLASSES.transform_values { |name| Form.const_get(name) }
+      InputClasses.merge(InputClasses.fields, builtin)
     end
 
     # The `name` of the first namespaced control, which the id prefix of the

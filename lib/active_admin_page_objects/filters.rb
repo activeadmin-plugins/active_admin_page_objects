@@ -67,7 +67,8 @@ module ActiveAdminPageObjects
     private
 
     def detectable_classes
-      FILTER_CLASSES.transform_values { |name| ActiveAdminPageObjects.const_get(name) }
+      builtin = FILTER_CLASSES.transform_values { |name| ActiveAdminPageObjects.const_get(name) }
+      InputClasses.merge(InputClasses.filters, builtin)
     end
 
     def declared_label_text(name, _declaration, **visibility)

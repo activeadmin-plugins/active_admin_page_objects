@@ -428,7 +428,7 @@ The declared class must be the class the gem detects for the wrapper, or a subcl
 
 Two of the gem's classes are subclasses of another detected class, so the check takes them for the parent's input: `Form::DatePickerField` on a string input, and `BooleanFilter` on a select filter.
 
-The gem detects its own classes by the formtastic class of the wrapper, and `Form::Field` or `Filter` for any other input. That list is fixed: there is no registry to add to. A section without declarations returns the detected class.
+The gem detects its classes by the formtastic class of the wrapper, and returns `Form::Field` or `Filter` for any other input. A theme or plugin adds its own input to that list: see [Registered input classes](#registered-input-classes). A section without declarations returns the detected class.
 
 ### Hidden selects
 
@@ -693,6 +693,17 @@ ActiveAdminPageObjects::Layout.add_element(:banner, ".banner")
 ```
 
 To use your own field or filter class, declare it on the section: `field :status, "Status", MySelectField`. It is a subclass of the gem's class for that input, or of `ActiveAdminPageObjects::Form::Field` or `ActiveAdminPageObjects::Filter` for an input class the gem has no class for. See [Declared types](#declared-types).
+
+### Registered input classes
+
+A theme or plugin whose input renders its own formtastic class, such as `as: :searchable_select`, registers the class that drives it. `form.field` and `filters.filter` then return it without a declaration:
+
+```ruby
+ActiveAdminPageObjects.register_field_class("searchable_select", MyWidget::Field)
+ActiveAdminPageObjects.register_filter_class("searchable_select", MyWidget::Filter)
+```
+
+The field class is a subclass of `ActiveAdminPageObjects::Form::Field` and the filter class of `ActiveAdminPageObjects::Filter`; anything else raises `ArgumentError`. A registered class wins over the gem's class when the wrapper also carries a class the gem knows, such as `select`. A page object that declares the gem's class for a registered input raises `DeclaredClassMismatch`; declare the registered class or a subclass of it.
 
 ### Select widgets
 
