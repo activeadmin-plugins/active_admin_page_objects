@@ -7,6 +7,7 @@ require_relative "active_admin_page_objects/version"
 require_relative "active_admin_page_objects/errors"
 require_relative "active_admin_page_objects/selectors"
 require_relative "active_admin_page_objects/text"
+require_relative "active_admin_page_objects/input_classes"
 
 # SitePrism pages and sections for ActiveAdmin. See README.md.
 module ActiveAdminPageObjects

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `ActiveAdminPageObjects.register_field_class(wrapper_class, field_class)` and `.register_filter_class(wrapper_class, filter_class)`: a theme or plugin maps the formtastic class of its own input to its section class, and `form.field` and `filters.filter` return that class without a declaration. A registered class wins over the gem's class.
+
 ## 1.0.0 (2026-11-24)
 
 ### Added
