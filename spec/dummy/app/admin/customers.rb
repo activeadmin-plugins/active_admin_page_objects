@@ -116,7 +116,7 @@ ActiveAdmin.register Customer do
       f.input :category, as: :select
       f.input :balance, as: :number
       f.input :active, as: :boolean
-      f.input :notes, as: :text
+      f.input :notes, as: :text, input_html: { maxlength: 200 }
       f.input :website, as: :url
       f.input :phone, as: :phone
       f.input :password, as: :password

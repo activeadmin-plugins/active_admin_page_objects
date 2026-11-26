@@ -142,13 +142,15 @@ page_object.flashes.messages(:alert) # one type
 
 ### Main menu
 
-Items are found by their label path, case-insensitively. `go` reads the link's URL and visits it, so it works with closed submenus and under `rack_test`. `click` drives the menu as a user does: it hovers each parent, then clicks the item's link. It sees visible items only, so a hidden or unreachable submenu raises `Capybara::ElementNotFound`. Under `rack_test`, which cannot hover, it skips the hovering.
+Items are found by their label path, case-insensitively. `href` returns the link's URL as the driver reports it, which is the absolute URL in a browser. `have_item(..., href:)` takes a path, a full URL or a Regexp, and compares a path to the URL's path and query. `go` reads the link's URL and visits it, so it works with closed submenus and under `rack_test`. `click` drives the menu as a user does: it hovers each parent, then clicks the item's link. It sees visible items only, so a hidden or unreachable submenu raises `Capybara::ElementNotFound`. Under `rack_test`, which cannot hover, it skips the hovering.
 
 ```ruby
 page_object.main_menu.go("Customers")
 page_object.main_menu.go("Catalog", "Orders")
 page_object.main_menu.click("Catalog", "Orders")
 expect(page_object.main_menu).to have_item("Catalog", "Categories")
+expect(page_object.main_menu).to have_item("Catalog", "Orders", href: "/admin/orders")
+page_object.main_menu.href("Catalog", "Orders") # => "http://127.0.0.1:3000/admin/orders" in a browser
 page_object.main_menu.current_labels # => ["Catalog", "Orders"]
 page_object.main_menu.labels("Catalog") # => ["Categories", "Orders"]
 ```
@@ -174,9 +176,11 @@ row.status_tag(:status) # see Status tags
 table.rows.map(&:record_id)
 expect(table).to have_row(customer.id) # by record id
 expect(table).to have_no_row(deleted.id)
+table.row_with(:server, "10.0.0.1:7080") # by a cell's whole text; a Regexp matches part of it
+expect(table).to have_row_with(:status, "Failed")
 ```
 
-`row`, `have_row` and `have_no_row` take the record id: an Integer or a non-empty String. Anything else, such as the record itself or `nil`, raises `ArgumentError`.
+`row_with`, `have_row_with` and `have_no_row_with` find rows that have no record id, such as a `table_for` of plain values. `row`, `have_row` and `have_no_row` take the record id: an Integer or a non-empty String. Anything else, such as the record itself or `nil`, raises `ArgumentError`.
 
 Sorting reads and clicks the header links:
 
@@ -281,7 +285,7 @@ comments.delete("Called back") # accepts the browser confirmation
 
 ### Filters
 
-`filter(key)` returns the section typed by the filter input: `StringFilter`, `NumericFilter`, `SelectFilter`, `BooleanFilter` or `DateRangeFilter`. The key is the one given to `filter :key`; the section wraps `#q_<key>_input`. Filters that [declare their filters](#declared-labels) take the declared name.
+`filter(key)` returns the section typed by the filter input: `StringFilter`, `NumericFilter`, `SelectFilter`, `BooleanFilter` or `DateRangeFilter`. The key is the one given to `filter :key`; the section wraps `#q_<key>_input`. Filters that [declare their filters](#declared-labels) take the declared name. A filter whose key holds its predicate, such as `filter :uuid_eq`, has a bare input and no predicate select: `fill_in(with:)` and `have_value` work, and a `predicate:` raises.
 
 ```ruby
 filters = index.filters
@@ -403,7 +407,7 @@ form.submit
 - `Form::FileField` for `file`: `fill` takes the path of the file and attaches it. A JavaScript driver needs an absolute path.
 - `Form::Field` for any other class: `fill` types text, picks a select option or ticks a checkbox, by what the wrapper holds.
 
-Every field also has `errors`, `disabled?` and `enabled?`, and `choose(option)` for a select or a radio button.
+Every field also has `errors`, `disabled?`, `enabled?`, `required?` and `input`, the field's first control, and `choose(option)` for a select or a radio button. `force_fill(text)` sets a text control's value with JavaScript, past its `maxlength`, so a spec reaches the server's own check.
 
 ```ruby
 form.field(:status).options # => ["active", "pending", "closed"]
@@ -440,6 +444,7 @@ expect(form).to have_exact_field_errors(name: "can't be blank", email: ["is inva
 form.field(:email).errors # => ["is invalid"]
 
 expect(form).to have_semantic_errors("Name is reserved") # every message is shown; ignores case
+expect(form).to have_semantic_errors(/can't be blank/) # a Regexp matches part of a message
 expect(form).to have_exact_semantic_errors("Name is reserved", "Balance is negative")
 expect(form).to have_exact_semantic_errors("Name is reserved", "Balance is negative", strict_order: true)
 form.semantic_errors # => ["Name is reserved", "Balance is negative"]
@@ -821,6 +826,7 @@ These need a JavaScript driver such as Cuprite or Selenium:
 - `HasMany#add` and `#remove`: the JavaScript adds and removes the fieldsets.
 - `Comments#delete`: the link asks the browser to confirm.
 - `StringFilter#fill_in` and `NumericFilter#fill_in` with a predicate other than the selected one: the JavaScript renames the input when the predicate changes.
+- `Form::Field#force_fill`: it sets the value with a script.
 
 Everything else works with `rack_test` too, including `MainMenu#go` and `MainMenu#click` (without hovering), filters with the current predicate, plain selects, date ranges, scopes, pagination, sorting and forms.
 

@@ -5,4 +5,6 @@ ActiveAdmin.register Category do
   permit_params :name
 
   filter :name
+  filter :name_eq, label: "Exact name"
+  filter :id_eq, label: "Category ID"
 end

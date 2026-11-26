@@ -38,6 +38,17 @@ RSpec.describe ActiveAdminPageObjects::MainMenu do
       expect(dashboard.main_menu.current_labels).to eq(["Dashboard"])
     end
 
+    it "reads and matches item links" do
+      expect(dashboard.main_menu.href("Catalog", "Orders")).to end_with("/admin/orders")
+      expect(dashboard.main_menu).to have_item("Catalog", "Orders", href: "/admin/orders")
+      expect(dashboard.main_menu).to have_item("Customers", href: %r{/admin/customers\z})
+      expect(dashboard.main_menu).to have_item("Customers", href: dashboard.main_menu.href("Customers"))
+      expect(dashboard.main_menu).to have_no_item("Customers", href: "/admin/orders")
+      expect(dashboard.main_menu.has_item?("Customers", href: "/admin/orders", wait: 0)).to be(false)
+      expect(dashboard.main_menu.has_item?("Catalog", href: "/admin/orders", wait: 0)).to be(false)
+      expect { dashboard.main_menu.href("Catalog") }.to raise_error(ArgumentError, /no link/)
+    end
+
     it "refuses an item without a link" do
       expect { dashboard.main_menu.go("Catalog") }.to raise_error(ArgumentError, /no link/)
     end

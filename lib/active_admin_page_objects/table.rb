@@ -9,6 +9,7 @@ module ActiveAdminPageObjects
   #   end
   class Table < Section
     include Declarations
+    include RowsByCell
 
     selector_key :table
 
