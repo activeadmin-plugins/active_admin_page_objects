@@ -109,6 +109,7 @@ RSpec.describe ActiveAdminPageObjects::Table do
       expect(table).to have_no_row(customers.last.id + 1)
       expect(table).to have_row(customers.first.id, text: customers.first.name)
       expect(table).to have_no_row(customers.first.id, text: "No such customer")
+      expect(table).to have_row(customers.first.id, text: customers.first.name.upcase)
       expect(table.has_no_row?(customers.first.id, wait: 0)).to be(false)
       expect(table.has_row?(customers.last.id + 1, wait: 0)).to be(false)
     end
@@ -130,6 +131,11 @@ RSpec.describe ActiveAdminPageObjects::Table do
       expect(row).to have_cell(:name, exact_text: customer.name)
       expect(row).to have_cell("CATEGORY", exact_text: "Retail")
       expect(row).to have_no_cell(:name, exact_text: "Nobody")
+      expect(row).to have_cell(:category, exact_text: "RETAIL")
+      expect(row).to have_cell(:category, text: "retail")
+      expect(row).to have_cell(:category, text: "RET", exact_text: false)
+      expect(row).to have_no_cell(:category, exact_text: "RET")
+      expect(row.has_no_cell?(:category, exact_text: "retail", wait: 0)).to be(false)
       expect(row.cell(:email)).to have_text(customer.email)
     end
 

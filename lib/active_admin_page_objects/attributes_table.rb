@@ -22,14 +22,15 @@ module ActiveAdminPageObjects
       end
     end
 
-    # True when row +key+ has a value cell matching the Capybara options.
+    # True when row +key+ has a value cell matching the Capybara options. A
+    # String `text:` or `exact_text:` ignores case.
     def has_row?(key, **options)
-      has_css?(cell_selector(key), **visibility_of(key), **options)
+      has_css?(cell_selector(key), **visibility_of(key), **case_insensitive_text(options))
     end
 
     # Waits until row +key+ has no value cell matching the Capybara options.
     def has_no_row?(key, **options)
-      has_no_css?(cell_selector(key), **visibility_of(key), **options)
+      has_no_css?(cell_selector(key), **visibility_of(key), **case_insensitive_text(options))
     end
 
     # The `<tr>` of row +key+. A hidden row is found with `visible: :all`.

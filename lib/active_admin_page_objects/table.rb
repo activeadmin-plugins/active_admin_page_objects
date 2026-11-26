@@ -46,14 +46,15 @@ module ActiveAdminPageObjects
         find(:css, cell_selector(key), **visibility_of(key, visible))
       end
 
-      # True when column +key+ has a cell matching the Capybara options.
+      # True when column +key+ has a cell matching the Capybara options. A
+      # String `text:` or `exact_text:` ignores case.
       def has_cell?(key, **options)
-        has_css?(cell_selector(key), **visibility_of(key), **options)
+        has_css?(cell_selector(key), **visibility_of(key), **case_insensitive_text(options))
       end
 
       # Waits until column +key+ has no cell matching the Capybara options.
       def has_no_cell?(key, **options)
-        has_no_css?(cell_selector(key), **visibility_of(key), **options)
+        has_no_css?(cell_selector(key), **visibility_of(key), **case_insensitive_text(options))
       end
 
       # Ticks the row's batch-action checkbox.
@@ -86,13 +87,13 @@ module ActiveAdminPageObjects
     # True when the body has the row of the record with +record_id+.
     # @raise [ArgumentError] when +record_id+ is not an Integer or a non-empty String
     def has_row?(record_id, **options)
-      has_css?(row_selector(record_id), **options)
+      has_css?(row_selector(record_id), **case_insensitive_text(options))
     end
 
     # Waits until the body has no row of the record with +record_id+.
     # @raise [ArgumentError] when +record_id+ is not an Integer or a non-empty String
     def has_no_row?(record_id, **options)
-      has_no_css?(row_selector(record_id), **options)
+      has_no_css?(row_selector(record_id), **case_insensitive_text(options))
     end
 
     # The non-empty header texts, as the driver reports them (Chrome reports

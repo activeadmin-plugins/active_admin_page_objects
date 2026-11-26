@@ -14,6 +14,15 @@ RSpec.describe ActiveAdminPageObjects::Text do
     expect(ActiveAdminPageObjects.same_text?("Created", "Created at")).to be(false)
   end
 
+  it "turns a String text option into a case-insensitive Regexp" do
+    expect(ActiveAdminPageObjects.case_insensitive_text(exact_text: "a.b  c", visible: :all))
+      .to eq(text: /\A\s*a\.b\s+c\s*\z/i, visible: :all)
+    expect(ActiveAdminPageObjects.case_insensitive_text(text: "No", exact_text: true)).to eq(text: /\A\s*No\s*\z/i)
+    expect(ActiveAdminPageObjects.case_insensitive_text(text: "No")).to eq(text: /No/i)
+    expect(ActiveAdminPageObjects.case_insensitive_text(text: /No/)).to eq(text: /No/)
+    expect(ActiveAdminPageObjects.case_insensitive_text(count: 1)).to eq(count: 1)
+  end
+
   it "squishes whitespace and keeps the case" do
     expect(ActiveAdminPageObjects.squish("  External\n  ID ")).to eq("External ID")
   end

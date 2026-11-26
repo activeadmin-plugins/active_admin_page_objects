@@ -16,6 +16,10 @@ RSpec.describe ActiveAdminPageObjects::AttributesTable do
       expect(show.attributes_table).to have_row(:name, exact_text: "Acme")
       expect(show.attributes_table).to have_row("Signed up")
       expect(show.attributes_table).to have_no_row(:name, exact_text: "Other")
+      expect(show.attributes_table).to have_row(:name, exact_text: "ACME")
+      expect(show.attributes_table).to have_row(:category, text: "wholesale")
+      expect(show.attributes_table).to have_no_row(:name, exact_text: "acm")
+      expect(show.attributes_table.has_no_row?(:name, exact_text: "acme", wait: 0)).to be(false)
     end
 
     it "reads a row and its value" do

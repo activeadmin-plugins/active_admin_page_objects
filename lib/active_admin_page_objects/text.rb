@@ -26,6 +26,29 @@ module ActiveAdminPageObjects
       expected.is_a?(Regexp) ? expected.match?(squish(actual)) : same_text?(actual, expected)
     end
 
+    # Capybara options with a String `text:` or `exact_text:` turned into a
+    # case-insensitive Regexp in `text:`. Chrome reports CSS-transformed text,
+    # so a tag uppercased by the theme still matches "verified".
+    # @return [Hash]
+    def case_insensitive_text(options)
+      text = options[:text]
+      exact = options[:exact_text]
+      if exact.is_a?(String) && text.nil?
+        options.except(:exact_text).merge(text: text_pattern(exact, exact: true))
+      elsif text.is_a?(String)
+        options.except(:exact_text).merge(text: text_pattern(text, exact: exact == true))
+      else
+        options
+      end
+    end
+
+    # A Regexp matching +text+ with any whitespace between its words, ignoring case.
+    # @return [Regexp]
+    def text_pattern(text, exact: false)
+      words = text.to_s.split.map { |word| Regexp.escape(word) }.join("\\s+")
+      Regexp.new(exact ? "\\A\\s*#{words}\\s*\\z" : words, Regexp::IGNORECASE)
+    end
+
     # A date as the date inputs take it: "2026-01-31" for a Date or a Time,
     # and the text of anything else.
     # @return [String]

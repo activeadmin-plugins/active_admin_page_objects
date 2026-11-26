@@ -149,13 +149,15 @@ table.row_with(:server, "10.0.0.1:7080") # by a cell's whole text; a Regexp matc
 expect(table).to have_row_with(:status, "Failed")
 ```
 
+`have_cell`, `have_row` and their `have_no_` forms ignore case when `text:` or `exact_text:` is a String, so a value the theme uppercases in CSS still matches. A Regexp is passed to Capybara unchanged.
+
 `row_with`, `have_row_with` and `have_no_row_with` find rows that have no record id, such as a `table_for` of plain values. `row`, `have_row` and `have_no_row` take the record id: an Integer or a non-empty String. Anything else, such as the record itself or `nil`, raises `ArgumentError`.
 
 The section defaults to `table.data-table`. Pass a locator for another table, such as a `table_for` inside a panel: `section :orders, ActiveAdminPageObjects::Table, "#orders_panel table"`.
 
 ### Attributes table
 
-Rows are keyed by the `row :foo` symbol, or by the label parameterized with `_`.
+Rows are keyed by the `row :foo` symbol, or by the label parameterized with `_`. As in the index table, a String `text:` or `exact_text:` ignores case.
 
 ```ruby
 table = show.attributes_table
