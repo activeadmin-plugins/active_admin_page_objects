@@ -39,6 +39,10 @@ RSpec.describe ActiveAdminPageObjects::Form do
       expect(form).to have_semantic_errors
       expect(form).to have_no_semantic_errors("Email is taken")
       expect(form.semantic_errors).to eq(["Name is reserved"])
+      expect(form).to have_semantic_errors(/is reserved/)
+      expect(form).to have_no_semantic_errors(/is taken/)
+      expect(form.has_semantic_errors?(/is taken/, wait: 0)).to be(false)
+      expect(form.has_semantic_errors?("is reserved", wait: 0)).to be(false)
       expect(form.field(:email).errors).to eq(["is invalid"])
     end
 
@@ -305,6 +309,26 @@ RSpec.describe ActiveAdminPageObjects::Form do
 
   context "with rack_test", driver: :rack_test do
     it_behaves_like "resource form"
+  end
+
+  it "tells required fields and reads a field's control" do
+    form_page.load(action: "new")
+    expect(form.field(:name)).to be_required
+    expect(form.field(:email)).not_to be_required
+    expect(form.field(:notes).input.tag_name).to eq("textarea")
+    expect(form.field(:status).input.tag_name).to eq("select")
+  end
+
+  it "sets a value past maxlength with JavaScript" do
+    form_page.load(action: "new")
+    form.fill(name: "Acme", email: "acme@example.com")
+    form.field(:notes).fill("x" * 250)
+    expect(form.field(:notes).value.length).to eq(200)
+    form.field(:notes).force_fill("x" * 250)
+    expect(form.field(:notes).value.length).to eq(250)
+    form.submit
+    expect(form_page.flashes).to have_flash(:notice, "Customer was successfully created.")
+    expect(Customer.last.notes.length).to eq(250)
   end
 
   it "has no type registry" do

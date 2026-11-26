@@ -113,6 +113,13 @@ module Pages
     section :filters, ActiveAdminPageObjects::Filters
   end
 
+  class CategoryIndex < ActiveAdminPageObjects::Page
+    set_url "/admin/categories"
+
+    section :table, ActiveAdminPageObjects::Table
+    section :filters, ActiveAdminPageObjects::Filters
+  end
+
   class TagIndex < ActiveAdminPageObjects::Page
     set_url "/admin/tags"
 

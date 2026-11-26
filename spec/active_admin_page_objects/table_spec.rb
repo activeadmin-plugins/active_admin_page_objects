@@ -136,6 +136,17 @@ RSpec.describe ActiveAdminPageObjects::Table do
     it "keeps rows in table order" do
       expect(table.rows.map(&:record_id)).to eq(customers.reverse.map { |c| c.id.to_s })
     end
+
+    it "finds a row by a cell's text" do
+      customer = customers[1]
+      expect(table.row_with(:name, customer.name).record_id).to eq(customer.id.to_s)
+      local_part = Regexp.escape(customer.email.delete_suffix("@example.com"))
+      expect(table.row_with("Email", /\A#{local_part}@/).record_id).to eq(customer.id.to_s)
+      expect(table).to have_row_with(:name, customer.name.upcase)
+      expect(table).to have_no_row_with(:name, "Nobody")
+      expect(table.has_row_with?(:name, "Nobody", wait: 0)).to be(false)
+      expect { table.row_with(:name, "Nobody", wait: 0) }.to raise_error(Capybara::ElementNotFound, /no row with :name/)
+    end
   end
 
   it_behaves_like "index table"

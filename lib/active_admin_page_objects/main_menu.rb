@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "uri"
+
 module ActiveAdminPageObjects
   # The main navigation. Items are found by their label path, e.g.
   # `go("Catalog", "Orders")`, and work under any Capybara driver: the menu is
@@ -16,11 +18,17 @@ module ActiveAdminPageObjects
 
     # Visits the menu item at the label path +labels+.
     def go(*labels)
-      item = find_item(labels) || raise(Capybara::ElementNotFound, "no menu item #{labels.inspect}")
-      link = item.first(:xpath, LINK_XPATH, visible: :all, minimum: 0)
-      raise ArgumentError, "menu item #{labels.inspect} has no link" if link.nil? || link[:href].to_s.empty? || link[:href] == "#"
+      visit(href(*labels))
+    end
 
-      visit(link[:href])
+    # The URL of the menu item at the label path +labels+, as the driver
+    # reports it: a browser driver gives the absolute URL. #has_item? with
+    # +href:+ compares a path to either form.
+    # @raise [ArgumentError] when the item has no link
+    # @return [String]
+    def href(*labels)
+      item = find_item(labels) || raise(Capybara::ElementNotFound, "no menu item #{labels.inspect}")
+      link_href(item) || raise(ArgumentError, "menu item #{labels.inspect} has no link")
     end
 
     # Navigates to the menu item at the label path +labels+ as a user does:
@@ -37,14 +45,17 @@ module ActiveAdminPageObjects
       end
     end
 
-    # True when the menu has an item at the label path +labels+.
-    def has_item?(*labels, **options)
-      eventually(**options) { find_item(labels) }
+    # True when the menu has an item at the label path +labels+, linking to
+    # +href+ when given: a path ("/admin/orders?scope=open"), a full URL, or a
+    # Regexp.
+    def has_item?(*labels, href: nil, **options)
+      eventually(**options) { item_with_href?(labels, href) }
     end
 
-    # Waits until the menu has no item at the label path +labels+.
-    def has_no_item?(*labels, **options)
-      eventually(**options) { find_item(labels).nil? }
+    # Waits until the menu has no item at the label path +labels+, or none
+    # linking to +href+ when given.
+    def has_no_item?(*labels, href: nil, **options)
+      eventually(**options) { !item_with_href?(labels, href) }
     end
 
     # The labels of the top-level items, or of the submenu at the label path
@@ -65,6 +76,31 @@ module ActiveAdminPageObjects
     end
 
     private
+
+    def item_with_href?(labels, expected)
+      item = find_item(labels)
+      return false if item.nil?
+
+      expected.nil? || href_matches?(link_href(item), expected)
+    end
+
+    def link_href(item)
+      href = item.first(:xpath, LINK_XPATH, visible: :all, minimum: 0, wait: false)&.[](:href).to_s
+      href unless href.empty? || href == "#"
+    end
+
+    # A browser driver reports the absolute URL, so a path is compared to the
+    # URL's path and query.
+    def href_matches?(actual, expected)
+      return false if actual.nil?
+      return expected.match?(actual) if expected.is_a?(Regexp)
+      return actual == expected unless expected.start_with?("/")
+
+      uri = URI.parse(actual)
+      [uri.path, uri.query].compact.join("?") == expected
+    rescue URI::InvalidURIError
+      false
+    end
 
     def find_item(labels)
       raise ArgumentError, "give at least one label" if labels.empty?

@@ -4,7 +4,8 @@ module ActiveAdminPageObjects
   # A filter with a predicate select and one value input (string, numeric).
   # Changing the predicate renames the input in JavaScript, so a predicate
   # other than the current one needs a JavaScript driver. A hidden predicate
-  # select is not found: see SelectControl.
+  # select is not found: see SelectControl. A filter whose key holds its
+  # predicate (`filter :uuid_eq`) has a bare input and no predicate select.
   class PredicateFilter < Filter
     include SelectControl
 
@@ -34,8 +35,14 @@ module ActiveAdminPageObjects
 
     private
 
+    # ActiveAdmin renders a filter whose key holds the predicate as a bare
+    # input in the wrapper, outside the input group.
     def value_input
-      find(:active_admin, :filter_value)
+      root_element.synchronize do
+        first(:active_admin, :filter_value, minimum: 0, wait: false) ||
+          first(:xpath, "./input", minimum: 0, wait: false) ||
+          raise(Capybara::ElementNotFound, "#{self.class} has no value input")
+      end
     end
 
     def predicate_select

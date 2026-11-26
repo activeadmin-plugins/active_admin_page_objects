@@ -15,8 +15,8 @@ module ActiveAdminPageObjects
         input.value
       end
 
-      private
-
+      # The text input or textarea.
+      # @return [Capybara::Node::Element]
       def input
         find(:fillable_field, match: :first)
       end

@@ -165,6 +165,32 @@ RSpec.describe ActiveAdminPageObjects::Filters do
     end
   end
 
+  shared_examples "fixed-predicate filters" do
+    let(:categories) { Pages::CategoryIndex.new }
+
+    it "fills and reads the bare input of a filter whose key holds the predicate" do
+      create_category("Wholesale")
+      categories.load
+      name = categories.filters.filter(:name_eq)
+      expect(name).to be_a(ActiveAdminPageObjects::StringFilter)
+      expect(name.predicate).to be_nil
+      name.fill_in(with: "Wholesale")
+      expect(name).to have_value("Wholesale")
+      expect { name.fill_in(with: "Wholesale", predicate: :cont) }
+        .to raise_error(Capybara::ElementNotFound, /no predicate select/)
+      categories.filters.submit
+      expect(categories.table).to have_rows(count: 1)
+      expect(categories.filters.filter(:name_eq)).to have_value("Wholesale")
+      expect(categories.filters.filter(:id_eq)).to have_value("")
+    end
+  end
+
+  it_behaves_like "fixed-predicate filters"
+
+  context "with fixed-predicate filters, with rack_test", driver: :rack_test do
+    it_behaves_like "fixed-predicate filters"
+  end
+
   it "returns a typed section per filter" do
     index.load
     expect(filters.filter(:name)).to be_a(ActiveAdminPageObjects::StringFilter)

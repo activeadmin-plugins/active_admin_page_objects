@@ -5,6 +5,6 @@ class Category < ActiveRecord::Base
 
   validates :name, presence: true
 
-  def self.ransackable_attributes(_auth = nil) = %w[name]
+  def self.ransackable_attributes(_auth = nil) = %w[id name]
   def self.ransackable_associations(_auth = nil) = []
 end

@@ -47,6 +47,25 @@ module ActiveAdminPageObjects
         end
       end
 
+      # True when formtastic marks the field required. Does not wait.
+      def required?
+        root_element[:class].to_s.split.include?("required")
+      end
+
+      # The field's first control: its input, select or textarea.
+      # @return [Capybara::Node::Element]
+      def input
+        find(:active_admin, :form_control, match: :first)
+      end
+
+      # Sets the text control's value with JavaScript, which skips `maxlength`
+      # and the other limits the browser puts on typing, so the server's own
+      # check runs. Needs a JavaScript driver.
+      def force_fill(text)
+        control = find("input:not([type=hidden]), textarea", match: :first)
+        control.session.execute_script("arguments[0].value = arguments[1]", control, text.to_s)
+      end
+
       # The inline error texts.
       # @return [Array<String>]
       def errors
@@ -88,11 +107,12 @@ module ActiveAdminPageObjects
     end
 
     # True when the base-error list shows every one of +messages+ (or any
-    # error when none are given).
+    # error when none are given). A String matches a whole error; a Regexp
+    # matches part of one: `/can't be blank/`.
     def has_semantic_errors?(*messages, **options)
       eventually(**options) do
         errors = semantic_errors
-        messages.empty? ? errors.any? : messages.all? { |m| errors.any? { |e| same_text?(e, m) } }
+        messages.empty? ? errors.any? : messages.all? { |m| errors.any? { |e| text_match?(e, m) } }
       end
     end
 
@@ -100,7 +120,7 @@ module ActiveAdminPageObjects
     def has_no_semantic_errors?(*messages, **options)
       eventually(**options) do
         errors = semantic_errors
-        messages.empty? ? errors.empty? : messages.none? { |m| errors.any? { |e| same_text?(e, m) } }
+        messages.empty? ? errors.empty? : messages.none? { |m| errors.any? { |e| text_match?(e, m) } }
       end
     end
 
