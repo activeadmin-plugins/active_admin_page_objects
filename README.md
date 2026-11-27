@@ -16,7 +16,7 @@ Until the first release, install it from git:
 ```ruby
 # Gemfile
 group :test do
-  gem "active_admin_page_objects", github: "senid231/active_admin_page_objects"
+  gem "active_admin_page_objects", github: "activeadmin-plugins/active_admin_page_objects"
 end
 ```
 
