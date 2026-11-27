@@ -104,4 +104,26 @@ RSpec.describe ActiveAdminPageObjects::Fields, "disabled fields" do
     expect(form).to have_disabled_field(:code, visible: :all)
     expect(form.has_disabled_field?(:code, wait: 0)).to be(false)
   end
+
+  shared_examples "disabled fieldset fields" do
+    it "matches the disabled fields of a has_many fieldset" do
+      customer = create_customer
+      Order.create!(customer: customer, reference: "REF-1", state: "paid", quantity: 2)
+      customers = Pages::CustomerForm.new
+      customers.load(id: customer.id, action: "edit", query: { lock_quantity: 1 })
+      fieldset = customers.form.has_many(:orders).fieldset(0)
+
+      expect(fieldset).to have_disabled_field(:quantity)
+      expect(fieldset).to have_enabled_field(:reference)
+      expect(fieldset).to have_no_disabled_field(:state)
+      expect(fieldset.field(:quantity)).to be_disabled
+      expect(customers.form).to have_enabled_field(:name)
+    end
+  end
+
+  it_behaves_like "disabled fieldset fields"
+
+  context "with rack_test", driver: :rack_test do
+    it_behaves_like "disabled fieldset fields"
+  end
 end

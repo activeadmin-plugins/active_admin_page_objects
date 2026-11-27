@@ -26,6 +26,15 @@ RSpec.describe ActiveAdminPageObjects::Panel do
     it_behaves_like "panel links"
   end
 
+  it "is found by title on a show page" do
+    customer = create_customer(notes: "Pays late")
+    show = Pages::CustomerShow.new
+    show.load(id: customer.id)
+    expect(show.notes.body).to have_text("Pays late")
+    expect(show.panel("NOTES").title).to eq("Notes")
+    expect(show).to have_no_selector(:active_admin_panel, "Missing")
+  end
+
   shared_examples "a title with a count" do
     it "is found by a regexp title" do
       show = Pages::DocumentShow.new
@@ -37,6 +46,7 @@ RSpec.describe ActiveAdminPageObjects::Panel do
       expect(show).to have_selector(:active_admin_panel, /\APossible Routes/)
       expect(show).to have_no_selector(:active_admin_panel, "Possible Routes")
       expect(show).to have_no_selector(:active_admin_panel, /\ARoutes/)
+      expect(show).to have_no_selector(:active_admin_panel, /Versions/)
     end
   end
 
@@ -46,12 +56,13 @@ RSpec.describe ActiveAdminPageObjects::Panel do
     it_behaves_like "a title with a count"
   end
 
-  it "is found by title on a show page" do
-    customer = create_customer(notes: "Pays late")
+  it "leaves out sidebar sections and the comments panel" do
     show = Pages::CustomerShow.new
-    show.load(id: customer.id)
-    expect(show.notes.body).to have_text("Pays late")
-    expect(show.panel("NOTES").title).to eq("Notes")
-    expect(show).to have_no_selector(:active_admin_panel, "Missing")
+    show.load(id: create_customer.id)
+    expect(show).to have_selector(:active_admin_sidebar, "Summary")
+    expect(show).to have_css(".comments.panel", text: "Comments (0)")
+    expect(show).to have_no_selector(:active_admin_panel, "Summary")
+    expect(show).to have_no_selector(:active_admin_panel, "Comments (0)")
+    expect(show).to have_selector(:active_admin_panel, count: 2)
   end
 end

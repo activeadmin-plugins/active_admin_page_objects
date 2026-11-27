@@ -31,6 +31,11 @@ module ActiveAdminPageObjects
       node[:class].to_s.split
     end
 
+    # The key in the node's `<prefix><key>` class: "name" for `col col-name` and "col-".
+    def class_key(node, prefix)
+      class_names(node).filter_map { |name| name.delete_prefix(prefix) if name.start_with?(prefix) && name != prefix }.first
+    end
+
     # True when +actual+ holds the +expected+ texts, in order, ignoring case.
     def texts_match?(actual, expected)
       actual.size == expected.size && actual.zip(expected).all? { |a, e| same_text?(a, e) }
@@ -41,6 +46,13 @@ module ActiveAdminPageObjects
       link.session.evaluate_script("arguments[0].getAttribute('href')", link).to_s
     rescue Capybara::NotSupportedByDriverError
       link[:href].to_s
+    end
+
+    # Types +text+ into a date input. jQuery UI opens the datepicker when the
+    # input gets focus, over the controls below; Escape closes it.
+    def type_date(input, text)
+      input.set(text)
+      input.send_keys(:escape) if class_names(input).include?("hasDatepicker")
     end
 
     # Retries the block until it is truthy or the wait time runs out.

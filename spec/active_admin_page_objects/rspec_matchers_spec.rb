@@ -5,11 +5,11 @@ require "active_admin_page_objects/rspec"
 # Stands in for capybara_active_admin: matchers of the same names, written for Capybara's `page`.
 module OtherLibraryMatchers
   def have_page_title(text, options = {})
-    have_css("[data-test-page-header] h2", text: text, **options)
+    have_css("#page_title", text: text, **options)
   end
 
   def have_table(options = {})
-    have_css("table.data-table", **options)
+    have_css("table.index_table", **options)
   end
 
   def have_semantic_errors(options = {})
@@ -17,25 +17,17 @@ module OtherLibraryMatchers
   end
 
   def have_status_tag(type, **options)
-    have_css("span.status-tag[data-status='#{type}']", **options)
+    have_css("span.status_tag.#{type}", **options)
   end
 
   def have_flash_message(text, options = {})
-    satisfy("show the flash #{text}") { |actual| actual.has_css?("[data-test-page-header] + div div", text: text, **options) }
+    satisfy("show the flash #{text}") { |actual| actual.has_css?(".flash", text: text, **options) }
   end
 end
 
 RSpec.describe ActiveAdminPageObjects::RSpec::Matchers do
   let(:index) { Pages::CustomerIndex.new }
-  let(:form_page) { Pages::CustomerForm.new }
-
-  let!(:customer) { create_customer(active: false) }
-
-  def submit_reserved_name
-    form_page.load(action: "new")
-    form_page.form.fill(name: "Reserved", email: "acme@example.com")
-    form_page.form.submit
-  end
+  let!(:customer) { create_customer(status: "pending") }
 
   # Every `def have_*` under lib/capybara/active_admin/matchers of the capybara_active_admin v1.0.0 tag.
   it "names every matcher of capybara_active_admin 1.0.0" do
@@ -71,22 +63,21 @@ RSpec.describe ActiveAdminPageObjects::RSpec::Matchers do
     it "asks a page object its predicate" do
       expect(index).to have_page_title(text: "Customers")
       expect(index).to have_table
-      submit_reserved_name
-      expect(form_page.form).to have_semantic_errors("Name is reserved")
+      expect(index.table.row(customer.id)).to have_status_tag(:status, "Pending", type: "pending")
     end
 
     it "asks a page object its has_no predicate when negated" do
-      submit_reserved_name
-      form = form_page.form
-      allow(form).to receive(:has_no_semantic_errors?).and_call_original
-      expect(form).not_to have_semantic_errors("Email is taken")
-      expect(form).to have_received(:has_no_semantic_errors?).with("Email is taken")
+      row = index.table.row(customer.id)
+      allow(row).to receive(:has_no_status_tag?).and_call_original
+      expect(row).not_to have_status_tag(:status, "Active")
+      expect(row).to have_received(:has_no_status_tag?).with(:status, "Active")
       tags = Pages::TagIndex.new
       tags.load
       expect(tags).not_to have_table
     end
 
     it "negates the predicate of a page object without a has_no predicate" do
+      form_page = Pages::CustomerForm.new
       form_page.load(action: "new")
       form = form_page.form
       allow(form).to receive(:respond_to?).and_call_original
@@ -98,8 +89,8 @@ RSpec.describe ActiveAdminPageObjects::RSpec::Matchers do
       expect(page).to have_page_title("Customers")
       expect(page).not_to have_page_title("Orders")
       expect(page).to have_table(count: 1)
-      expect(page).to have_status_tag(:no, text: /no/i)
-      expect(page).not_to have_status_tag(:yes)
+      expect(page).to have_status_tag(:pending, text: /pending/i)
+      expect(page).not_to have_status_tag(:active)
       expect(page).not_to have_flash_message("Saved", wait: 0)
     end
 
@@ -107,10 +98,10 @@ RSpec.describe ActiveAdminPageObjects::RSpec::Matchers do
     it "uses the other library's matcher for have_table on a page object without a table section" do
       show = Pages::CustomerShow.new
       show.load(id: customer.id)
-      expect(show).to have_css(".attributes-table table")
+      expect(show).to have_css(".attributes_table table")
       expect(show).not_to have_table
       expect { expect(show).to have_table(wait: 0) }
-        .to raise_error(RSpec::Expectations::ExpectationNotMetError, /expected to find .*table\.data-table/)
+        .to raise_error(RSpec::Expectations::ExpectationNotMetError, /expected to find .*table\.index_table/)
       expect(show.attributes_table).not_to have_table
     end
 
@@ -127,11 +118,10 @@ RSpec.describe ActiveAdminPageObjects::RSpec::Matchers do
       expect { Capybara.using_wait_time(0) { expect(index).not_to have_table } }
         .to raise_error(RSpec::Expectations::ExpectationNotMetError, /has_no_table\?` to be truthy, got false/)
       expect { expect(page).to have_page_title("Orders", wait: 0) }
-        .to raise_error(RSpec::Expectations::ExpectationNotMetError, /expected to find .*data-test-page-header/)
+        .to raise_error(RSpec::Expectations::ExpectationNotMetError, /expected to find .*#page_title/)
       expect { expect(page).not_to have_page_title("Customers", wait: 0) }
-        .to raise_error(RSpec::Expectations::ExpectationNotMetError, /expected not to find .*data-test-page-header/)
-      # Ruby 3.3 and 3.4 inspect the options hash differently.
-      expect(have_page_title(text: "Customers").description).to match(/\Ahave page title \{.*"Customers"\}\z/)
+        .to raise_error(RSpec::Expectations::ExpectationNotMetError, /expected not to find .*#page_title/)
+      expect(have_page_title(text: "Customers").description).to match(/\Ahave page title \{:?text(: |=>)"Customers"\}\z/)
     end
   end
 
@@ -142,7 +132,7 @@ RSpec.describe ActiveAdminPageObjects::RSpec::Matchers do
 
     it "is the predicate matcher for any object" do
       expect(index).to have_page_title(text: "Customers")
-      expect(index).not_to have_page_title(text: "Orders")
+      expect(index.table.row(customer.id)).not_to have_status_tag(:status, "Active")
       expect { expect(page).to have_footer }
         .to raise_error(RSpec::Expectations::ExpectationNotMetError, /to respond to `has_footer\?`/)
     end
@@ -244,15 +234,17 @@ RSpec.describe ActiveAdminPageObjects::RSpec::Matchers do
       expect { expect(index.filters).to have_no_declared_filters(wait: 0) }
         .to fail_with("expected a declared filter to be missing or to have another label, but every one matches")
 
+      form_page = Pages::CustomerForm.new
       form_page.load(action: "new")
       form = Class.new(ActiveAdminPageObjects::Form) do
-        field :email, "E-mail", ActiveAdminPageObjects::Form::StringField
+        field :email, "Email", ActiveAdminPageObjects::Form::StringField
         field :secret, "Secret", ActiveAdminPageObjects::Form::StringField
+        has_many :orders, "Order list"
       end.new(form_page, form_page.form.root_element)
-      expect { expect(form).to have_exact_fields(only: %i[secret email], wait: 0) }.to fail_with(<<~MESSAGE.chomp)
-        expected exactly the declared fields (only: secret, email), but:
+      expect { expect(form).to have_exact_fields(only: %i[secret orders], wait: 0) }.to fail_with(<<~MESSAGE.chomp)
+        expected exactly the declared fields (only: secret, orders), but:
           missing: secret
-          label of email: expected "E-mail", got "Email"
+          label of orders: expected "Order list", got "Orders"
       MESSAGE
       expect(form_page.form).to have_exact_fields
     end
@@ -297,6 +289,7 @@ RSpec.describe ActiveAdminPageObjects::RSpec::Matchers do
   describe "failure messages of the exact error matchers" do
     include ActiveAdminPageObjects::RSpec::Matchers
 
+    let(:form_page) { Pages::CustomerForm.new }
     let(:form) { form_page.form }
 
     def fail_with(message)
@@ -371,6 +364,21 @@ RSpec.describe ActiveAdminPageObjects::RSpec::Matchers do
       expect { expect(form).to have_no_exact_semantic_errors(wait: 0) }
         .to fail_with("expected a semantic error, but the form shows none")
       expect(form).to have_exact_field_errors.and have_exact_semantic_errors
+    end
+
+    it "reports the errors of a has_many fieldset" do
+      customer.orders.create!(reference: "REF-1", state: "new", quantity: 1)
+      form_page.load(id: customer.id, action: "edit")
+      form.has_many(:orders).fieldset(0).fill(quantity: 0)
+      form.submit
+      fieldset = form.has_many(:orders).fieldset(0)
+      expect(fieldset).to have_exact_field_errors(quantity: "must be greater than 0")
+      expect { without_waiting { expect(fieldset).to have_exact_field_errors(reference: "can't be blank") } }
+        .to fail_with(<<~MESSAGE.chomp)
+          expected exactly the given field errors, but:
+            reference: missing "can't be blank"
+            quantity: unexpected "must be greater than 0"
+        MESSAGE
     end
 
     context "with base errors" do

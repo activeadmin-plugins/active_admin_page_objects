@@ -61,17 +61,15 @@ RSpec.describe ActiveAdminPageObjects::Table do
       expect { partial.has_declared_columns?(except: :email) }.to raise_error(ArgumentError, /:email is not declared/)
     end
 
-    it "keys the untitled selection and actions columns" do
-      untitled = declared_table do
-        column :selectable, "Select"
-        column :actions, "Actions"
-      end
-      expect(untitled.declared_label_mismatches).to eq("selectable" => "", "actions" => "")
-      expect(untitled.exact_mismatches[:missing]).to eq([])
-      expect(declared_table { column :actions, "" }).to have_declared_columns
-      index.load(query: { with_notes: 1 })
-      expect(declared_table { column :actions, "" }).to have_declared_columns
-      expect(table.exact_mismatches[:unexpected]).to eq([])
+    it "matches the status tag of a cell" do
+      row = table.row(customers.first.id)
+      expect(row).to have_status_tag(:status, "Active")
+      expect(row).to have_status_tag(:status, "active", type: :active)
+      expect(row).to have_no_status_tag(:status, "Pending")
+      expect(row).to have_no_status_tag(:status, "Active", type: "pending")
+      expect(row).to have_no_status_tag(:name, "Active")
+      expect(row.has_status_tag?(:status, "Pending", wait: 0)).to be(false)
+      expect(row.has_no_status_tag?(:status, "Active", wait: 0)).to be(false)
     end
 
     it "compares a declared label exactly" do
@@ -89,6 +87,7 @@ RSpec.describe ActiveAdminPageObjects::Table do
     it "takes any key without declarations" do
       lenient = described_class.new(index, table.root_element)
       expect(lenient.rows.first).to have_no_cell(:secret)
+      Capybara.using_wait_time(0) { expect(lenient.has_sortable_column?(:secret)).to be(false) }
       expect { lenient.has_declared_columns? }.to raise_error(ArgumentError, /declares no labels/)
       expect { lenient.has_exact_columns? }.to raise_error(ArgumentError, /declares no labels/)
       expect { lenient.declared_label_mismatches }.to raise_error(ArgumentError, /declares no labels/)
@@ -137,6 +136,37 @@ RSpec.describe ActiveAdminPageObjects::Table do
       expect(table.rows.map(&:record_id)).to eq(customers.reverse.map { |c| c.id.to_s })
     end
 
+    it "reads the sort order and the sortable columns" do
+      expect(table.sorted_by).to eq(["id", :desc])
+      expect(table).to have_sortable_column(:name)
+      expect(table).to have_sortable_column("Created")
+      Capybara.using_wait_time(0) { expect(table.has_sortable_column?(:category)).to be(false) }
+    end
+
+    it "sorts by clicking a header" do
+      table.sort_by(:name)
+      expect(page).to have_current_path(/order=name_desc/)
+      expect(index.table.sorted_by).to eq(["name", :desc])
+    end
+
+    it "sorts in a given direction" do
+      table.sort_by(:name, :asc)
+      expect(page).to have_current_path(/order=name_asc/)
+      expect(index.table.sorted_by).to eq(["name", :asc])
+      expect(index.table.rows.map(&:record_id)).to eq(customers.map { |c| c.id.to_s })
+
+      index.table.sort_by("Name", "desc")
+      expect(index.table.sorted_by).to eq(["name", :desc])
+      expect(index.table.rows.map(&:record_id)).to eq(customers.reverse.map { |c| c.id.to_s })
+
+      index.table.sort_by(:name, :desc)
+      expect(page).to have_current_path(/order=name_desc/)
+    end
+
+    it "rejects an unknown sort direction" do
+      expect { table.sort_by(:name, :up) }.to raise_error(ArgumentError, /direction/)
+    end
+
     it "finds a row by a cell's text" do
       customer = customers[1]
       expect(table.row_with(:name, customer.name).record_id).to eq(customer.id.to_s)
@@ -173,7 +203,7 @@ RSpec.describe ActiveAdminPageObjects::Table do
 
     before do
       index.load
-      hide('[data-column="email"]')
+      hide(".col-email")
     end
 
     it "leaves a hidden column out by default" do
@@ -206,7 +236,7 @@ RSpec.describe ActiveAdminPageObjects::Table do
     end
 
     it "takes a hidden column declared with visible: :all" do
-      hide('[data-column="status"]')
+      hide(".col-status")
       declared = declared_table do
         column :name, "Name"
         column :email, "Email", visible: :all
@@ -216,25 +246,18 @@ RSpec.describe ActiveAdminPageObjects::Table do
       row = declared.row(customer.id)
       expect(row.cell(:email).text(:all)).to eq(customer.email)
       expect(row).to have_cell(:email, exact_text: customer.email)
+      expect(row.status_tag(:status).label).to eq("Active")
+      expect(row).to have_status_tag(:status, "Active")
+      expect(declared).to have_sortable_column(:email)
       expect(declared).to have_declared_columns
       expect(declared).to have_exact_columns(only: %i[name email])
       expect(declared.exact_mismatches).to include(missing: [], labels: {})
       Capybara.using_wait_time(0) do
         expect { row.cell(:email, visible: :visible) }.to raise_error(Capybara::ElementNotFound)
         expect(row.has_cell?(:email, visible: :visible)).to be(false)
+        expect(row.has_status_tag?(:status, "Active", visible: :visible)).to be(false)
       end
       expect(declared.declared_label_mismatches(visible: :visible)).to eq("email" => nil, "status" => nil)
-    end
-
-    it "leaves a hidden selection or actions column out by default" do
-      hide("thead th:first-child, thead th:last-child")
-      expect(table.exact_mismatches(except: %i[email notes])).to eq(missing: %w[selectable actions], unexpected: [], labels: {})
-      expect(table).to have_exact_columns(except: :notes, visible: :all)
-
-      partial = declared_table { column :name, "Name" }
-      expect(partial.exact_mismatches[:unexpected]).not_to include("selectable", "actions")
-      expect(partial.exact_mismatches(visible: :all)[:unexpected]).to include("selectable", "actions")
-      expect(declared_table { column :actions, "", visible: :all }).to have_declared_columns
     end
   end
 
@@ -247,12 +270,18 @@ RSpec.describe ActiveAdminPageObjects::Table do
     end
 
     it "rejects an undeclared key before it queries the page" do
-      row = described_class::Row.new(strict_class.new(nil, nil), nil)
+      strict = strict_class.new(nil, nil)
       message = /:secret is not declared; declared keys: id, name/
+      expect { strict.sort_by(:secret) }.to raise_error(ArgumentError, message)
+      expect { strict.has_sortable_column?(:secret) }.to raise_error(ArgumentError, message)
+
+      row = described_class::Row.new(strict, nil)
       expect { row.cell(:secret) }.to raise_error(ArgumentError, message)
       expect { row.has_cell?(:secret) }.to raise_error(ArgumentError, message)
       expect { row.has_no_cell?(:secret) }.to raise_error(ArgumentError, message)
-      expect { row.cell("Secret") }.to raise_error(ArgumentError, /"Secret" is not declared/)
+      expect { row.status_tag("Secret") }.to raise_error(ArgumentError, /"Secret" is not declared/)
+      expect { row.has_status_tag?(:secret, "Active") }.to raise_error(ArgumentError, message)
+      expect { row.has_no_status_tag?(:secret, "Active") }.to raise_error(ArgumentError, message)
     end
 
     it "requires a label" do

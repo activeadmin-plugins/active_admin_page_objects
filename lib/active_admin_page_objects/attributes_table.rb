@@ -9,8 +9,12 @@ module ActiveAdminPageObjects
   #     row :name, "Name"
   #     row :external_id, "External ID"
   #   end
+  #
+  # `status_tag(:status)`, `status_tags(:status)` and `has_status_tag?` read
+  # the value cell of a row: see StatusTag::Matchers.
   class AttributesTable < Section
     include Declarations
+    include StatusTag::Matchers
 
     selector_key :attributes_table
 
@@ -63,9 +67,8 @@ module ActiveAdminPageObjects
       label_text("#{sel(:attributes_table_row, key)} > th", **visibility)
     end
 
-    # A row without a title has no `data-row` and no key.
     def page_element_keys(**visibility)
-      all(:css, sel(:attributes_table_rows), wait: false, **visibility).map { |row| row[:"data-row"].to_s }
+      all(:css, sel(:attributes_table_rows), wait: false, **visibility).filter_map { |row| class_key(row, "row-") }
     end
   end
 end

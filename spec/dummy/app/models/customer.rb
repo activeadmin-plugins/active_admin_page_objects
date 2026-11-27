@@ -8,6 +8,8 @@ class Customer < ActiveRecord::Base
   belongs_to :category, optional: true
   has_many :orders, dependent: :destroy
 
+  accepts_nested_attributes_for :orders, allow_destroy: true
+
   serialize :channels, type: Array, coder: JSON
   attr_accessor :password
 

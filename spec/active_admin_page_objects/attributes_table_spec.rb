@@ -52,17 +52,26 @@ RSpec.describe ActiveAdminPageObjects::AttributesTable do
       expect { partial.has_declared_rows?(except: :email) }.to raise_error(ArgumentError, /:email is not declared/)
     end
 
+    it "matches the status tag of a row" do
+      table = show.attributes_table
+      expect(table).to have_status_tag(:status, "Active")
+      expect(table).to have_status_tag(:status, "ACTIVE", type: "active")
+      expect(table).to have_no_status_tag(:status, "Pending")
+      expect(table).to have_no_status_tag(:status, "Active", type: "pending")
+      expect(table).to have_no_status_tag(:name, "Active")
+      expect(table.has_status_tag?(:status, "Pending", wait: 0)).to be(false)
+      expect(table.has_no_status_tag?(:status, "Active", wait: 0)).to be(false)
+    end
+
     it "compares a declared label exactly" do
       wrong_case = declared_table do
         row :name, "Name"
         row :external_id, "External id"
-        row :signed_up, "Signed Up"
         row :notes, "Notes"
       end
       expect(wrong_case).to have_no_declared_rows
       expect(wrong_case.has_declared_rows?(wait: 0)).to be(false)
-      expect(wrong_case.declared_label_mismatches)
-        .to eq("external_id" => "External ID", "signed_up" => "Signed up", "notes" => nil)
+      expect(wrong_case.declared_label_mismatches).to eq("external_id" => "External ID", "notes" => nil)
       expect(declared_table { row :external_id, "External ID" }).to have_declared_rows
     end
 
@@ -85,7 +94,7 @@ RSpec.describe ActiveAdminPageObjects::AttributesTable do
 
     before do
       show.load(id: customer.id)
-      hide('tr[data-row="email"]')
+      hide("tr.row-email")
     end
 
     it "leaves a hidden row out by default" do
@@ -107,7 +116,7 @@ RSpec.describe ActiveAdminPageObjects::AttributesTable do
     end
 
     it "takes a hidden row when the query has visible: :all" do
-      expect(table.row(:email, visible: :all)[:"data-row"]).to eq("email")
+      expect(table.row(:email, visible: :all)[:class]).to include("row-email")
       expect(table.value(:email, visible: :all)).to eq(customer.email)
       expect(table).to have_row(:email, visible: :all, exact_text: customer.email)
       expect(table).to have_exact_rows(visible: :all)
@@ -120,23 +129,25 @@ RSpec.describe ActiveAdminPageObjects::AttributesTable do
     end
 
     it "takes a hidden row declared with visible: :all" do
-      hide('tr[data-row="status"]')
+      hide("tr.row-status")
       declared = declared_table do
         row :name, "Name"
         row :email, "Email", visible: :all
         row :status, "Status", visible: :all
       end
       expect(declared.class.declarations).to include("name" => { label: "Name" }, "email" => { label: "Email", visible: :all })
-      expect(declared.row(:email)[:"data-row"]).to eq("email")
+      expect(declared.row(:email)[:class]).to include("row-email")
       expect(declared.value(:email)).to eq(customer.email)
-      expect(declared.value(:status)).to eq("active")
       expect(declared).to have_row(:email, exact_text: customer.email)
+      expect(declared.status_tag(:status).label).to eq("Active")
+      expect(declared).to have_status_tag(:status, "Active")
       expect(declared).to have_declared_rows
       expect(declared).to have_exact_rows(only: %i[name email])
       expect(declared.exact_mismatches).to include(missing: [], labels: {})
       Capybara.using_wait_time(0) do
         expect { declared.row(:email, visible: :visible) }.to raise_error(Capybara::ElementNotFound)
         expect(declared.has_row?(:email, visible: :visible)).to be(false)
+        expect(declared.has_status_tag?(:status, "Active", visible: :visible)).to be(false)
       end
       expect(declared.declared_label_mismatches(visible: :visible)).to eq("email" => nil, "status" => nil)
     end
@@ -157,6 +168,9 @@ RSpec.describe ActiveAdminPageObjects::AttributesTable do
       expect { strict.has_no_row?(:notes) }.to raise_error(ArgumentError, message)
       expect { strict.row(:notes) }.to raise_error(ArgumentError, message)
       expect { strict.value(:notes) }.to raise_error(ArgumentError, message)
+      expect { strict.status_tag(:notes) }.to raise_error(ArgumentError, message)
+      expect { strict.has_status_tag?(:notes, "Active") }.to raise_error(ArgumentError, message)
+      expect { strict.has_no_status_tag?(:notes, "Active") }.to raise_error(ArgumentError, message)
     end
 
     # An empty scope compares nothing, so every matcher would pass on any page.

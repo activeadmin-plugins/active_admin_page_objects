@@ -3,7 +3,5 @@
 /gemfiles/*.lock
 /tmp/
 /.bundle/
-/spec/dummy/node_modules/
-/spec/dummy/app/assets/builds/
 /spec/dummy/tmp/
 /spec/dummy/log/

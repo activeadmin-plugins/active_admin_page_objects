@@ -5,7 +5,8 @@ require_relative "declarations/typed"
 
 module ActiveAdminPageObjects
   # Names and labels declared on a section class. AttributesTable, Table,
-  # Filters and Form include it and add their own class method:
+  # Filters, Form and HasMany::Fieldset include it and add their own class
+  # method:
   #
   #   section :attributes_table, ActiveAdminPageObjects::AttributesTable do
   #     row :external_id, "External ID"
@@ -75,8 +76,8 @@ module ActiveAdminPageObjects
       # The declarations of this class and its superclasses, in declaration
       # order. A subclass adds to its own copy.
       # @return [Hash{String => Hash}] name => `{ label: }`, with `type:` for
-      #   filters and fields, `kind:` for fields, and `visible:` when the
-      #   declaration gives it
+      #   filters, fields and has_many blocks, `kind:` for fields and has_many
+      #   blocks, and `visible:` when the declaration gives it
       def declarations
         inherited = superclass.respond_to?(:declarations) ? superclass.declarations : {}
         inherited.merge(own_declarations).freeze

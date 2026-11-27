@@ -146,7 +146,7 @@ RSpec.describe ActiveAdminPageObjects::Form do
       expect(partial.has_exact_fields?(wait: 0)).to be(false)
       expect(partial.exact_mismatches).to eq(
         missing: ["secret"],
-        unexpected: %w[name external_id category balance active notes website phone password tier channels signed_on],
+        unexpected: %w[name external_id category balance active notes website phone password tier channels signed_on orders],
         labels: { "email" => "Email" }
       )
     end
@@ -164,7 +164,7 @@ RSpec.describe ActiveAdminPageObjects::Form do
       expect(partial.exact_mismatches(except: :secret)[:missing]).to eq([])
       expect(partial.exact_mismatches(except: :email)).to include(missing: ["secret"], labels: {})
       expect(partial.exact_mismatches(except: :email)[:unexpected]).not_to include("email")
-      expect(form).to have_exact_fields(except: %i[notes signed_on])
+      expect(form).to have_exact_fields(except: %i[notes orders])
       expect { form.has_exact_fields?(only: :secret) }.to raise_error(ArgumentError, /:secret is not declared/)
       expect { form.has_declared_fields?(except: [:secret]) }.to raise_error(ArgumentError, /:secret is not declared/)
       expect { form.exact_mismatches(except: :secret) }.to raise_error(ArgumentError, /:secret is not declared/)
@@ -195,22 +195,11 @@ RSpec.describe ActiveAdminPageObjects::Form do
         "but the page has ActiveAdminPageObjects::Form::SelectField"
       )
       expect { mistyped.fill(status: "pending") }.to raise_error(Capybara::ExpectationNotMet, /RadioField/)
-      expect { mistyped.field(:signed_on) }
-        .to raise_error(Capybara::ExpectationNotMet, /StringField, but the page has .*DatePickerField/)
+      expect do
+        mistyped.field(:signed_on)
+      end.to raise_error(Capybara::ExpectationNotMet, /StringField, but the page has .*DatePickerField/)
       expect { mistyped.field(:email) }.to raise_error(Capybara::ExpectationNotMet, /Form::Field, but the page has .*StringField/)
       expect(mistyped).to have_declared_fields
-    end
-
-    it "takes a name that is a method of the section" do
-      form_page.load(action: "new")
-      reserved = declared_form do
-        field :name, "Name", ActiveAdminPageObjects::Form::StringField
-        field :title, "Title", ActiveAdminPageObjects::Form::StringField
-      end
-      reserved.field(:name).fill("Acme")
-      expect(reserved.field(:name).value).to eq("Acme")
-      expect(reserved).to have_no_field_error(:name)
-      expect(reserved).to have_declared_fields(only: :name)
     end
 
     it "takes any key without declarations" do
@@ -218,6 +207,7 @@ RSpec.describe ActiveAdminPageObjects::Form do
       lenient = described_class.new(form_page, form.root_element)
       expect(lenient).to have_no_field_error(:secret)
       expect(lenient.field(:name)).to be_an_instance_of(ActiveAdminPageObjects::Form::StringField)
+      expect(lenient.has_many(:orders)).to be_an_instance_of(ActiveAdminPageObjects::HasMany)
       expect { lenient.has_declared_fields? }.to raise_error(ArgumentError, /declares no labels/)
       expect { lenient.has_exact_fields? }.to raise_error(ArgumentError, /declares no labels/)
       expect { lenient.exact_mismatches }.to raise_error(ArgumentError, /declares no labels/)
@@ -282,7 +272,7 @@ RSpec.describe ActiveAdminPageObjects::Form do
         expect(channels.checked).to eq([])
       end
 
-      it "returns a DatePickerField for a date_picker" do
+      it "returns a DatePickerField for a datepicker" do
         signed_on = form.field(:signed_on)
         expect(signed_on).to be_an_instance_of(ActiveAdminPageObjects::Form::DatePickerField)
         signed_on.fill("2026-01-31")
@@ -292,15 +282,41 @@ RSpec.describe ActiveAdminPageObjects::Form do
       end
 
       it "saves what the typed fields set" do
-        form.fill(
-          name: "Acme", email: "acme@example.com", website: "https://acme.example.com",
-          phone: "+1 555 0100", tier: "Gold", channels: %w[Email Post], signed_on: "2026-01-31"
-        )
+        form.fill(name: "Acme", email: "acme@example.com", website: "https://acme.example.com",
+                  phone: "+1 555 0100", tier: "Gold", channels: %w[Email Post], signed_on: "2026-01-31")
         form.submit
 
         expect(form_page.flashes).to have_flash(:notice, "Customer was successfully created.")
         expect(Customer.last).to have_attributes(website: "https://acme.example.com", phone: "+1 555 0100", tier: "Gold",
                                                  channels: %w[Email Post], signed_on: Date.new(2026, 1, 31))
+      end
+    end
+
+    describe "declared has_many blocks" do
+      before { form_page.load(action: "new") }
+
+      it "returns the declared has_many by its name" do
+        expect(form.has_many(:orders).class).to be < ActiveAdminPageObjects::HasMany
+        expect(form.has_many(:orders).heading).to eq("Orders")
+        expect { form.has_many(:tags) }.to raise_error(ArgumentError, /:tags is not declared; declared keys: orders/)
+        expect { form.field(:orders) }.to raise_error(ArgumentError, /:orders is declared as a has_many, not as a field/)
+        expect { form.has_field_error?(:orders) }.to raise_error(ArgumentError, /has_many/)
+      end
+
+      it "compares the heading with the label matchers" do
+        relabeled = declared_form { has_many :orders, "Order list" }
+        expect(relabeled).to have_no_declared_fields
+        expect(relabeled.declared_label_mismatches).to eq("orders" => "Orders")
+        expect(relabeled.exact_mismatches[:unexpected]).not_to include("orders")
+        expect(declared_form { has_many :orders, nil }.declared_label_mismatches).to eq("orders" => "Orders")
+        expect(declared_form { has_many :tags, "Tags" }.exact_mismatches).to include(missing: ["tags"])
+        expect(declared_form { has_many :tags, nil }.declared_label_mismatches).to eq("tags" => nil)
+      end
+
+      it "takes an undeclared has_many when the form declares none" do
+        fields_only = declared_form { field :email, "Email", ActiveAdminPageObjects::Form::StringField }
+        expect(fields_only.has_many(:orders)).to be_an_instance_of(ActiveAdminPageObjects::HasMany)
+        expect(fields_only.exact_mismatches[:unexpected]).to include("orders")
       end
     end
   end
@@ -309,6 +325,13 @@ RSpec.describe ActiveAdminPageObjects::Form do
 
   context "with rack_test", driver: :rack_test do
     it_behaves_like "resource form"
+  end
+
+  it "matches a has_many without a heading when nil is declared" do
+    form_page.load(action: "new")
+    page.execute_script("document.querySelector('.has_many_container.orders > h3').remove()")
+    expect(declared_form { has_many :orders, nil }).to have_declared_fields
+    expect(declared_form { has_many :orders, "Orders" }.declared_label_mismatches).to eq("orders" => "")
   end
 
   it "tells required fields and reads a field's control" do
@@ -407,6 +430,33 @@ RSpec.describe ActiveAdminPageObjects::Form do
       end
       expect(declared.declared_label_mismatches(visible: :visible)).to eq("notes" => nil)
       expect(declared.field(:notes, visible: :hidden)).to be_an_instance_of(klass)
+    end
+
+    it "does not require a hidden has_many block" do
+      hide(".has_many_container.orders")
+      fields = form.class.declarations.reject { |_name, declaration| declaration[:kind] == :has_many }
+      fields_only = declared_form { fields.each { |name, declaration| field name, declaration[:label], declaration[:type] } }
+      expect(fields_only).to have_exact_fields
+      expect(fields_only).to have_no_exact_fields(visible: :all)
+      expect(fields_only.exact_mismatches(visible: :all)).to eq(missing: [], unexpected: ["orders"], labels: {})
+    end
+
+    it "finds a hidden has_many block with visible: :all" do
+      hide(".has_many_container.orders")
+      Capybara.using_wait_time(0) { expect { form.has_many(:orders) }.to raise_error(Capybara::ElementNotFound) }
+      expect(form.exact_mismatches).to eq(missing: ["orders"], unexpected: [], labels: {})
+      expect(form.has_many(:orders, visible: :all).class).to be < ActiveAdminPageObjects::HasMany
+      expect(form).to have_exact_fields(visible: :all)
+      expect(described_class.new(form_page, form.root_element).has_many(:orders, visible: :all))
+        .to be_an_instance_of(ActiveAdminPageObjects::HasMany)
+
+      declared = declared_form { has_many :orders, "Orders", visible: :all }
+      expect(declared.class.declarations["orders"]).to include(label: "Orders", kind: :has_many, visible: :all)
+      expect(declared.has_many(:orders).class).to be < ActiveAdminPageObjects::HasMany
+      expect(declared).to have_declared_fields
+      Capybara.using_wait_time(0) do
+        expect { declared.has_many(:orders, visible: :visible) }.to raise_error(Capybara::ElementNotFound)
+      end
     end
 
     it "counts the errors of a hidden field when it is declared or queried with visible: :all" do
@@ -558,6 +608,18 @@ RSpec.describe ActiveAdminPageObjects::Form do
       expect { Class.new(described_class) { field :email, "Email" } }.to raise_error(ArgumentError)
       expect { Class.new(described_class) { field :email, "Email", nil } }
         .to raise_error(ArgumentError, "`field :email` needs a section class, got nil")
+    end
+
+    it "declares names that are methods of the section and reaches them with field" do
+      form_page.load(action: "new")
+      named = declared_form do
+        field :name, "Name", ActiveAdminPageObjects::Form::StringField
+        field :title, "Title", ActiveAdminPageObjects::Form::StringField
+      end
+      expect(named.class.declarations.keys).to eq(%w[name title])
+      expect(named.field(:name)).to be_an_instance_of(ActiveAdminPageObjects::Form::StringField)
+      named.field(:name).fill("Acme")
+      expect(named.field(:name).value).to eq("Acme")
     end
 
     it "lets a subclass declare an inherited name again" do

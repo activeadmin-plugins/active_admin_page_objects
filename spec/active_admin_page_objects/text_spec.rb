@@ -18,7 +18,7 @@ RSpec.describe ActiveAdminPageObjects::Text do
     expect(ActiveAdminPageObjects.squish("  External\n  ID ")).to eq("External ID")
   end
 
-  it "slugs keys the way ActiveAdmin writes data-column" do
+  it "slugs keys the way ActiveAdmin writes the col- and row- classes" do
     expect(ActiveAdminPageObjects.slug("EXTERNAL ID")).to eq("external_id")
     expect(ActiveAdminPageObjects.slug(:external_id)).to eq("external_id")
     expect(ActiveAdminPageObjects.slug("Signed up")).to eq("signed_up")
@@ -43,22 +43,22 @@ end
 RSpec.describe ActiveAdminPageObjects do
   describe ".check_version!" do
     it "passes for a satisfied requirement" do
-      expect { described_class.check_version!(">= 2.0.0.a", "< 3.0.0.a", plugin: "demo") }.not_to raise_error
+      expect { described_class.check_version!(">= 1.0.0.a", "< 2.0.0.a", plugin: "demo") }.not_to raise_error
     end
 
-    it "keeps the 3.x prereleases out with an upper bound of 3.0.0.a" do
-      stub_const("ActiveAdminPageObjects::VERSION", "3.0.0.alpha")
-      expect { described_class.check_version!(">= 2.0.0.a", "< 3.0.0.a", plugin: "demo") }
+    it "keeps the 2.x prereleases out with an upper bound of 2.0.0.a" do
+      stub_const("ActiveAdminPageObjects::VERSION", "2.0.0.alpha")
+      expect { described_class.check_version!(">= 1.0.0.a", "< 2.0.0.a", plugin: "demo") }
         .to raise_error(ActiveAdminPageObjects::IncompatibleVersion)
     end
 
     it "raises for an unsatisfied requirement" do
-      expect { described_class.check_version!(">= 3.0", plugin: "demo") }
-        .to raise_error(ActiveAdminPageObjects::IncompatibleVersion, /demo page objects need active_admin_page_objects >= 3.0/)
+      expect { described_class.check_version!(">= 2.0", plugin: "demo") }
+        .to raise_error(ActiveAdminPageObjects::IncompatibleVersion, /demo page objects need active_admin_page_objects >= 2.0/)
     end
   end
 
   it "has a version" do
-    expect(ActiveAdminPageObjects::VERSION).to eq("2.0.0.alpha")
+    expect(ActiveAdminPageObjects::VERSION).to eq("1.0.0")
   end
 end

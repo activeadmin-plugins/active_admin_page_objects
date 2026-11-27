@@ -91,8 +91,10 @@ RSpec.describe ActiveAdminPageObjects::Filters do
         Capybara::ExpectationNotMet,
         ":email is declared as ActiveAdminPageObjects::NumericFilter, but the page has ActiveAdminPageObjects::StringFilter"
       )
-      expect { mistyped.filter(:balance) }
-        .to raise_error(Capybara::ExpectationNotMet, /PredicateFilter, but the page has .*NumericFilter/)
+      expect { mistyped.filter(:email) }.to raise_error(Capybara::ExpectationNotMet, /NumericFilter/)
+      expect do
+        mistyped.filter(:balance)
+      end.to raise_error(Capybara::ExpectationNotMet, /PredicateFilter, but the page has .*NumericFilter/)
       expect(mistyped).to have_declared_filters
     end
 
@@ -151,6 +153,12 @@ RSpec.describe ActiveAdminPageObjects::Filters do
         .to raise_error(ArgumentError, '`filter :email` needs a section class, got "StringFilter"')
     end
 
+    it "declares a name that is a method of the section and reaches it with filter" do
+      index.load
+      named = Class.new(described_class) { filter :name, "Name", ActiveAdminPageObjects::StringFilter }
+      expect(named.new(index, filters.root_element).filter(:name)).to be_an_instance_of(ActiveAdminPageObjects::StringFilter)
+    end
+
     it "inherits declarations and leaves the superclass unchanged" do
       subclass = Class.new(strict_class) do
         filter :status, "Status", ActiveAdminPageObjects::SelectFilter
@@ -199,7 +207,8 @@ RSpec.describe ActiveAdminPageObjects::Filters do
     expect(filters.filter(:category)).to be_a(ActiveAdminPageObjects::SelectFilter)
     expect(filters.filter(:active)).to be_a(ActiveAdminPageObjects::BooleanFilter)
     expect(filters.filter(:created_at)).to be_a(ActiveAdminPageObjects::DateRangeFilter)
-    expect(filters.filter(:name).label).to eq("Name")
+    # ActiveAdmin 3 uppercases sidebar labels in CSS and Chrome reports the uppercased text.
+    expect(filters.filter(:name).label).to match(/\Aname\z/i)
   end
 
   it "has no type registry" do
@@ -210,7 +219,7 @@ RSpec.describe ActiveAdminPageObjects::Filters do
 
   it "returns a Filter for a wrapper class the gem has no class for" do
     index.load
-    page.execute_script("document.querySelector('#q_created_at_input').className = 'date_time_picker input filters-form-field'")
+    page.execute_script("document.querySelector('#q_created_at_input').className = 'date_time_picker input filter_form_field'")
     expect(described_class.new(index, filters.root_element).filter(:created_at))
       .to be_an_instance_of(ActiveAdminPageObjects::Filter)
   end
@@ -517,6 +526,7 @@ RSpec.describe ActiveAdminPageObjects::Filters do
     expect(index.table).to have_rows(count: 3)
   end
 
+  # "Clear Filters" is left out: ActiveAdmin 3 clears in JavaScript.
   context "with rack_test", driver: :rack_test do
     it_behaves_like "declared filters"
 
@@ -530,8 +540,6 @@ RSpec.describe ActiveAdminPageObjects::Filters do
       expect(names).to eq(["Alpha"])
       expect(filters.filter(:status)).to have_selected("active")
       expect(filters.filter(:created_at)).to have_range("2026-01-01", "2026-12-31")
-      filters.clear
-      expect(index.table).to have_rows(count: 3)
     end
   end
 end

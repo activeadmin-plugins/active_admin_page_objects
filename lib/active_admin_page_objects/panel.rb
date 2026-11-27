@@ -7,19 +7,20 @@ module ActiveAdminPageObjects
   #
   # The title is a String, compared whole and ignoring case, or a Regexp for a
   # title with a changing part: `page.panel(/\ARoutes \(\d+\)\z/)`.
+  # Sidebar sections and the comments panel are left out: see Sidebar and Comments.
   class Panel < Section
     selector_key :panel
 
     # The panel title text.
     # @return [String]
     def title
-      find(:active_admin, :panel_title).text.strip
+      find(:active_admin, :panel_title, match: :first).text.strip
     end
 
     # The panel body node, for content assertions.
     # @return [Capybara::Node::Element]
     def body
-      find(:active_admin, :panel_body)
+      find(:active_admin, :panel_body, match: :first)
     end
 
     # The links in the body: the text and the `href` attribute as written.

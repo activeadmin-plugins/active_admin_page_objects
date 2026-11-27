@@ -53,14 +53,14 @@ module Pages
       row :status, "Status"
       row :balance, "Balance"
       row :category, "Category"
-      row :signed_up, "Signed up"
+      row :signed_up, "Signed Up"
     end
     section :notes, ActiveAdminPageObjects::Panel, :active_admin_panel, "Notes"
     section :tabs, ActiveAdminPageObjects::Tabs
   end
 
   class CustomerForm < ActiveAdminPageObjects::Page
-    set_url "/admin/customers{/id}{/action}"
+    set_url "/admin/customers{/id}{/action}{?query*}"
 
     section :form, ActiveAdminPageObjects::Form do
       field :name, "Name", ActiveAdminPageObjects::Form::StringField
@@ -77,6 +77,15 @@ module Pages
       field :tier, "Tier", ActiveAdminPageObjects::Form::RadioField
       field :channels, "Channels", ActiveAdminPageObjects::Form::CheckBoxesField
       field :signed_on, "Signed on", ActiveAdminPageObjects::Form::DatePickerField
+      has_many :orders, "Orders" do
+        field :reference, "Reference", ActiveAdminPageObjects::Form::StringField
+        field :state, "State", ActiveAdminPageObjects::Form::SelectField
+        field :quantity, "Quantity", ActiveAdminPageObjects::Form::StringField
+      end
+
+      def add_order(reference)
+        has_many(:orders).add.field(:reference).fill(reference)
+      end
     end
   end
 
@@ -90,7 +99,10 @@ module Pages
   class DocumentShow < ActiveAdminPageObjects::Page
     set_url "/admin/documents/{id}"
 
+    section :attributes_table, ActiveAdminPageObjects::AttributesTable
     section :routes, ActiveAdminPageObjects::Panel, :active_admin_panel, /\APossible Routes \(\d+\)\z/
+    section :versions, ActiveAdminPageObjects::Sidebar, :active_admin_sidebar, /\AVersions/
+    section :tabs, ActiveAdminPageObjects::Tabs
   end
 
   class DocumentForm < ActiveAdminPageObjects::Page

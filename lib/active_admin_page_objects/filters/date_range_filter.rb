@@ -3,7 +3,8 @@
 require "date"
 
 module ActiveAdminPageObjects
-  # A date range filter: "from" and "to" date inputs.
+  # A date range filter: "from" and "to" text inputs with a jQuery UI
+  # datepicker. The dates are typed in, not picked.
   class DateRangeFilter < Filter
     # Sets the range. Takes Date objects or ISO strings ("2026-01-31"); nil
     # or "" clears that end.
@@ -38,8 +39,8 @@ module ActiveAdminPageObjects
     end
 
     def fill_date(input, value)
-      value = nil if value == ""
-      input.set(value.nil? || value.respond_to?(:strftime) ? value : Date.iso8601(value.to_s))
+      value = Date.iso8601(value) if value.is_a?(String) && !value.empty?
+      type_date(input, iso(value))
     end
 
     def range_matches?(from, to)

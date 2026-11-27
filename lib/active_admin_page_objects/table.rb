@@ -1,8 +1,7 @@
 # frozen_string_literal: true
 
 module ActiveAdminPageObjects
-  # An index table (`table_for`). Declare the columns and their header labels
-  # on the section:
+  # An index table. Declare the columns and their header labels on the section:
   #
   #   section :table, ActiveAdminPageObjects::Table do
   #     column :id, "Id"
@@ -23,15 +22,14 @@ module ActiveAdminPageObjects
       end
     end
 
-    # ActiveAdmin 4 writes no `data-column` on the selection and actions
-    # columns: their headers have no title. These are their keys.
-    SELECTION_COLUMN = "selectable"
-    ACTIONS_COLUMN = "actions"
-    private_constant :SELECTION_COLUMN, :ACTIONS_COLUMN
+    SORT_DIRECTIONS = %i[asc desc].freeze
 
-    # One `<tr>` of the table body.
+    # One `<tr>` of the table body. `status_tag(:status)`,
+    # `status_tags(:status)` and `has_status_tag?` read the cell of a column:
+    # see StatusTag::Matchers.
     class Row < Section
       include Declarations::Lookup
+      include StatusTag::Matchers
 
       # The record id from the row's `id="<resource>_<id>"`.
       # @return [String]
@@ -95,17 +93,17 @@ module ActiveAdminPageObjects
       has_no_css?(row_selector(record_id), **options)
     end
 
-    # The non-empty header texts, as the driver reports them (Chrome reports
-    # CSS-uppercased text).
+    # The non-empty header texts, as the driver reports them.
     # @return [Array<String>]
     def header_names
       all(:active_admin, :table_header).map { |th| th.text.strip }.reject(&:empty?)
     end
 
-    # The `data-column` keys of the headers.
+    # The keys of the titled columns, from each header's `col-<key>` class.
+    # The selection and actions columns have no title and are left out.
     # @return [Array<String>]
     def column_keys
-      all(:active_admin, :table_header).filter_map { |th| th[:"data-column"] }
+      all(:active_admin, :table_header).filter_map { |th| class_key(th, "col-") unless th.text.strip.empty? }
     end
 
     # True when the headers equal +names+, in order, ignoring case.
@@ -135,6 +133,39 @@ module ActiveAdminPageObjects
       has_no_css?(sel(:table_row), **given(count: count), **options)
     end
 
+    # Clicks the header link of column +key+. With +direction+ (`:asc` or
+    # `:desc`) it clicks until the column is sorted that way: the first click
+    # on an unsorted column sorts descending.
+    # @raise [Capybara::ElementNotFound] when the column is not sortable
+    def sort_by(key, direction = nil)
+      declaration_for(key)
+      return click_sort_link(key) if direction.nil?
+
+      direction = checked_direction(direction)
+      2.times do
+        current = sort_direction(key)
+        break if current == direction
+
+        click_sort_link(key)
+        # The click reloads the page; wait for the header to show the new order.
+        eventually { sort_direction(key) != current } ||
+          raise(Capybara::ExpectationNotMet, "column #{key.inspect} kept its sort order after a click")
+      end
+    end
+
+    # The sorted column and its direction, e.g. `["name", :desc]`, or nil
+    # when no column is sorted.
+    # @return [Array(String, Symbol), nil]
+    def sorted_by
+      th = first(:active_admin, :table_sorted_header, minimum: 0, wait: false)
+      th && [class_key(th, "col-"), direction_of(th)]
+    end
+
+    # True when column +key+ has a sort link.
+    def has_sortable_column?(key)
+      has_css?(sel(:table_sortable_header, slug(key)), **visibility_of(key))
+    end
+
     private
 
     # A record or nil in the selector would match no row, so `has_no_row?` would pass.
@@ -152,44 +183,34 @@ module ActiveAdminPageObjects
       eventually(**options) { texts_match?(header_names, names) == expected }
     end
 
+    def sortable_header(key)
+      find(:css, sel(:table_sortable_header, slug(key)))
+    end
+
+    def click_sort_link(key)
+      sortable_header(key).find(:active_admin, :table_sort_link).click
+    end
+
+    def sort_direction(key)
+      direction_of(sortable_header(key))
+    end
+
+    def checked_direction(direction)
+      return direction.to_sym if SORT_DIRECTIONS.include?(direction.to_sym)
+
+      raise ArgumentError, "direction must be one of #{SORT_DIRECTIONS.inspect}, got #{direction.inspect}"
+    end
+
+    def direction_of(header)
+      SORT_DIRECTIONS.find { |direction| class_names(header).include?("sorted-#{direction}") }
+    end
+
     def declared_label_text(key, _declaration, **visibility)
-      label_text(sel(:table_column_header, key), **visibility) || untitled_header_label(key, **visibility)
+      label_text(sel(:table_column_header, key), **visibility)
     end
 
     def page_element_keys(**visibility)
-      keyed_headers(**visibility).map(&:first)
-    end
-
-    # Each header with its key: its `data-column`, or the key of the selection
-    # or actions column. Any other untitled column has no key and is left out.
-    def keyed_headers(**visibility)
-      all(:active_admin, :table_header, wait: false, **visibility).filter_map do |header|
-        key = header[:"data-column"].to_s
-        key = untitled_column_key(header) if key.empty?
-        [key, header] if key
-      end
-    end
-
-    # The selection header holds the toggle-all checkbox. The actions header
-    # is empty, so the column is known by the actions in its body cells. The
-    # checkbox and the actions tell the columns apart, so they are found
-    # hidden too.
-    def untitled_column_key(header)
-      return SELECTION_COLUMN if header.has_css?(sel(:batch_actions_toggle_all), visible: :all, wait: false)
-
-      ACTIONS_COLUMN if has_css?(sel(:table_actions_cell, column_position(header)), visible: :all, wait: false)
-    end
-
-    # The 1-based position of +header+ among every header, the hidden ones included.
-    def column_position(header)
-      header.all(:xpath, "preceding-sibling::*", visible: :all, wait: false).size + 1
-    end
-
-    def untitled_header_label(key, **visibility)
-      return unless [SELECTION_COLUMN, ACTIONS_COLUMN].include?(key)
-
-      header = keyed_headers(**visibility).assoc(key)&.last
-      header && squish(header.text(:all))
+      all(:active_admin, :table_header, wait: false, **visibility).filter_map { |header| class_key(header, "col-") }
     end
   end
 end

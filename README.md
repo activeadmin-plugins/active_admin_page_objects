@@ -2,12 +2,14 @@
 
 A Page Object Model DSL for Capybara of ActiveAdmin, built on [SitePrism](https://github.com/site-prism/site_prism).
 
-System specs call semantic methods, such as `table.row(id).cell(:name)`, `filters.filter(:status).select_option("Active")` or `main_menu.go("Catalog", "Orders")`, instead of CSS selectors. The selectors for vanilla ActiveAdmin 4 live in this gem.
+System specs call semantic methods, such as `table.row(id).cell(:name)`, `filters.filter(:status).select_option("Active")` or `main_menu.go("Catalog", "Orders")`, instead of CSS selectors. The selectors for vanilla ActiveAdmin 3 live in this gem.
 
 ## Versions
 
-- 2.x supports vanilla ActiveAdmin 4 (tested on 4.0.0.beta23). This is the `main` line.
-- 1.x is planned for vanilla ActiveAdmin 3, on the `1-x-stable` branch, with the same names where the component exists.
+- 1.x supports vanilla ActiveAdmin 3 (tested on 3.5.2). This is the `1-x-stable` branch.
+- 2.x supports vanilla ActiveAdmin 4. This is the `main` branch. Its sections and methods have the same names as 1.x where the component exists in both versions.
+
+To upgrade ActiveAdmin from 3 to 4, bump this gem to 2.x. Only specs that use a feature ActiveAdmin 4 removed need a change: `Tabs`, the action-item dropdown and `UtilityNavigation` raise `RemovedInActiveAdmin4` in 2.x.
 
 ## Installation
 
@@ -16,7 +18,7 @@ Until the first release, install it from git:
 ```ruby
 # Gemfile
 group :test do
-  gem "active_admin_page_objects", github: "senid231/active_admin_page_objects"
+  gem "active_admin_page_objects", github: "activeadmin-plugins/active_admin_page_objects", branch: "1-x-stable"
 end
 ```
 
@@ -25,7 +27,7 @@ end
 require "active_admin_page_objects"
 ```
 
-Runtime dependencies: `activeadmin` (>= 4.0.0.beta1, < 5.0.0.a), `site_prism` (>= 5.0, < 7) and `capybara` (>= 3.37), on Ruby 3.3 or later.
+Runtime dependencies: `activeadmin` (>= 3.0, < 4.0.0.a), `site_prism` (>= 5.0, < 7) and `capybara` (>= 3.37), on Ruby 3.3 or later. CI runs Ruby 3.3 and 3.4 with activeadmin 3.5.2, capybara 3.40 and site_prism 5.2 and 6.0; older versions inside these ranges are not tested.
 
 ### Rails 8 setup
 
@@ -74,10 +76,25 @@ Use the `has_no_*` matchers (`have_no_row`), not `not_to have_*`. They wait for 
 ```ruby
 expect(page_object).to have_site_title(text: "My Admin")
 expect(page_object).to have_page_title(text: "Customers")
-expect(page_object).to have_dark_mode_toggle # alias: have_theme_switcher
-expect(page_object).to have_user_menu_button
 expect(page_object).to have_blank_slate(text: "There are no Customers yet.")
 page_object.panel("Notes").body # the panel titled "Notes"
+page_object.sidebar("Help").body # the sidebar section titled "Help"
+page_object.modal_dialog # see Batch actions
+```
+
+ActiveAdmin 3 has no dark mode toggle and no user menu button. `dark_mode_toggle` (alias `theme_switcher`) and `user_menu_button` raise `ActiveAdminPageObjects::NotInActiveAdmin3`.
+
+`panel` skips sidebar sections and the comments panel, which ActiveAdmin 3 renders as panels too. Use `sidebar` and `Comments` for them.
+
+### Utility navigation
+
+The current user and the logout link in the header.
+
+```ruby
+navigation = page_object.utility_navigation
+navigation.current_user # => "admin@example.com"
+navigation.labels # => ["admin@example.com", "Logout"]
+navigation.logout
 ```
 
 ### Breadcrumbs
@@ -89,19 +106,32 @@ page_object.breadcrumbs.labels # => ["Admin", "Customers"]
 page_object.breadcrumbs.links # => Capybara elements
 ```
 
+`labels` returns the text the driver reports. ActiveAdmin 3's CSS uppercases the trail, so a JavaScript driver gives `["ADMIN", "CUSTOMERS"]`. The matchers ignore case.
+
 ### Action items
 
 ```ruby
-page_object.action_items.labels # => ["New Customer", "Report"]
+page_object.action_items.labels # => ["New Customer", "More"]
 page_object.action_items.click("New Customer")
-expect(page_object.action_items).to have_item("Report")
+expect(page_object.action_items).to have_item("More")
 ```
 
-`dropdown` raises `ActiveAdminPageObjects::RemovedInActiveAdmin4`: ActiveAdmin 4 has no action-item dropdown.
+ActiveAdmin 3 always renders the container, so assert on its items, not on the section.
+
+A `dropdown_menu` is an item too. `dropdown(label)` returns a `DropdownMenu` (the only one when called without a label):
+
+```ruby
+more = page_object.action_items.dropdown("More")
+more.label # => "More"
+more.labels # => ["Report", "Customers"], also from a closed menu
+more.open
+more.click("Customers") # opens the menu first
+expect(more).to have_item("Report")
+```
 
 ### Flashes
 
-ActiveAdmin 4 renders the `notice`, `alert` and `error` types.
+ActiveAdmin 3 renders the `notice`, `alert`, `error` and `warning` types. It renders the container on every page, so assert on the content: `have_no_flash` works without flashes.
 
 ```ruby
 expect(page_object.flashes).to have_flash(:notice, "Customer was successfully created.")
@@ -112,7 +142,7 @@ page_object.flashes.messages(:alert) # one type
 
 ### Main menu
 
-Items are found by their label path, case-insensitively. `href` returns the link's URL as the driver reports it, which is the absolute URL in a browser. `have_item(..., href:)` takes a path, a full URL or a Regexp, and compares a path to the URL's path and query. `go` reads the link's URL and visits it, so it works with closed submenus and under `rack_test`. `click` drives the menu as a user does: it opens each collapsed parent with its toggle button, then clicks the item's link. It sees visible items only, so a submenu that stays hidden raises `Capybara::ElementNotFound`. Under `rack_test`, which has no JavaScript, the submenus are never collapsed, so `click` just clicks the link.
+Items are found by their label path, case-insensitively. `href` returns the link's URL as the driver reports it, which is the absolute URL in a browser. `have_item(..., href:)` takes a path, a full URL or a Regexp, and compares a path to the URL's path and query. `go` reads the link's URL and visits it, so it works with closed submenus and under `rack_test`. `click` drives the menu as a user does: it hovers each parent, then clicks the item's link. It sees visible items only, so a hidden or unreachable submenu raises `Capybara::ElementNotFound`. Under `rack_test`, which cannot hover, it skips the hovering.
 
 ```ruby
 page_object.main_menu.go("Customers")
@@ -127,7 +157,7 @@ page_object.main_menu.labels("Catalog") # => ["Categories", "Orders"]
 
 ### Table
 
-Cells are keyed by column: `:external_id` or `"External ID"` both match `data-column="external_id"`. `have_header_names` takes every header in order and compares case-insensitively, because ActiveAdmin 4 uppercases `th` in CSS and Chrome reports the uppercased text. To check the exact labels, declare the columns: see [Declared labels](#declared-labels).
+Cells are keyed by column: `:external_id` or `"External ID"` both match the `col-external_id` class. `have_header_names` takes every header in order and compares case-insensitively, so `"Id"` and `"ID"` match. To check the exact labels, declare the columns: see [Declared labels](#declared-labels).
 
 ```ruby
 table = index.table
@@ -142,6 +172,7 @@ expect(row).to have_cell(:name, exact_text: "Acme")
 expect(row).to have_no_cell(:email, text: "old@example.com")
 row.cell(:email) # the <td>
 row.select # ticks the batch-action checkbox
+row.status_tag(:status) # see Status tags
 table.rows.map(&:record_id)
 expect(table).to have_row(customer.id) # by record id
 expect(table).to have_no_row(deleted.id)
@@ -151,7 +182,18 @@ expect(table).to have_row_with(:status, "Failed")
 
 `row_with`, `have_row_with` and `have_no_row_with` find rows that have no record id, such as a `table_for` of plain values. `row`, `have_row` and `have_no_row` take the record id: an Integer or a non-empty String. Anything else, such as the record itself or `nil`, raises `ArgumentError`.
 
-The section defaults to `table.data-table`. Pass a locator for another table, such as a `table_for` inside a panel: `section :orders, ActiveAdminPageObjects::Table, "#orders_panel table"`.
+Sorting reads and clicks the header links:
+
+```ruby
+table.sort_by(:name) # one click
+table.sort_by(:name, :asc) # clicks until the column is sorted that way
+table.sorted_by # => ["name", :asc], or nil
+expect(table).to have_sortable_column(:name)
+```
+
+The first click on an unsorted column sorts descending.
+
+The section defaults to `table.index_table`. Pass a locator for another table, such as a `table_for` inside a panel: `section :orders, ActiveAdminPageObjects::Table, "#orders_panel table"`.
 
 ### Attributes table
 
@@ -163,6 +205,36 @@ expect(table).to have_row(:name, exact_text: "Acme")
 expect(table).to have_no_row(:secret)
 table.row(:category) # the <tr>
 table.value(:email) # => "acme@example.com"
+table.status_tag(:status) # see Status tags
+```
+
+### Status tags
+
+An index row and the attributes table of a show page match the status tag of a cell by its label and, with `type:`, its CSS classes:
+
+```ruby
+expect(index.table.row(customer.id)).to have_status_tag(:status, "Pending")
+expect(show.attributes_table).to have_status_tag(:status, "Pending", type: "pending")
+expect(show.attributes_table).to have_no_status_tag(:status, "Active")
+```
+
+`status_tag(key)` returns the `StatusTag`:
+
+```ruby
+tag = show.attributes_table.status_tag(:status)
+tag.label # => "Pending"
+tag.type # => "pending", or "ok warning" for several classes
+expect(tag).to have_type("pending")
+expect(tag).to have_label("pending")
+```
+
+`label` returns the DOM text. ActiveAdmin 3's CSS uppercases it on screen. The matchers ignore the case of the label.
+
+A cell may hold several status tags. `have_status_tag` passes when any of them matches, and `have_no_status_tag` when none does. `status_tag(key)` raises `Capybara::Ambiguous` for such a cell: use `status_tags(key)`.
+
+```ruby
+expect(row).to have_status_tag(:flags, "Archived", type: "warning")
+row.status_tags(:flags).map(&:label) # => ["Draft", "Archived"]
 ```
 
 ### Panel
@@ -180,14 +252,35 @@ expect(show.notes.body).to have_text("Pays late")
 show.notes.links # => [{ text: "Invoices", href: "/admin/invoices?customer=1" }]
 ```
 
+A sidebar section works the same way, with `ActiveAdminPageObjects::Sidebar` and the `:active_admin_sidebar` selector: `section :help, ActiveAdminPageObjects::Sidebar, :active_admin_sidebar, "Help"`.
+
 `links` lists the links of the body, each with its text and its `href` attribute as the page wrote it, on every driver.
 
-A String title is the whole title, ignoring case. For a title with a changing part, such as "Possible Routes (2)", pass a Regexp, which is case-sensitive unless it has `/i`. It works for `page.panel` and the `:active_admin_panel` selector:
+A String title is the whole title, ignoring case. For a title with a changing part, such as "Possible Routes (2)", pass a Regexp, which is case-sensitive unless it has `/i`. It works for `page.panel`, `page.sidebar` and both selectors:
 
 ```ruby
 section :routes, ActiveAdminPageObjects::Panel, :active_admin_panel, /\APossible Routes \(\d+\)\z/
 
 show.panel(/\APossible Routes/).title # => "Possible Routes (2)"
+show.sidebar(/\AVersions/)
+```
+
+### Comments
+
+```ruby
+class CustomerShow < ActiveAdminPageObjects::Page
+  set_url "/admin/customers/{id}"
+
+  section :comments, ActiveAdminPageObjects::Comments
+end
+
+comments = show.comments
+comments.add("Called back")
+expect(comments).to have_comment("Called back")
+comments.count # => 1, from the "Comments (1)" title
+comments.bodies # => ["Called back"]
+comments.authors # => ["admin@example.com"]
+comments.delete("Called back") # accepts the browser confirmation
 ```
 
 ### Filters
@@ -202,7 +295,7 @@ filters.filter(:status).select_option("Active")
 filters.filter(:active).set(true) # false, or nil for "Any"
 filters.filter(:created_at).set("2026-01-01", Date.new(2026, 1, 31))
 filters.submit
-filters.clear
+filters.clear # needs a JavaScript driver
 
 expect(filters.filter(:name)).to have_value("Acme", predicate: "Equals")
 expect(filters.filter(:status)).to have_selected("Active")
@@ -210,7 +303,7 @@ expect(filters.filter(:active)).to have_value(true)
 expect(filters.filter(:created_at)).to have_range("2026-01-01", "2026-01-31")
 ```
 
-`DateRangeFilter#set` takes Date objects or ISO strings; `nil` or `""` clears that end.
+`DateRangeFilter` types the dates into the two inputs. It does not use the jQuery UI datepicker. `set` takes Date objects or ISO strings; `nil` or `""` clears that end.
 
 Declare one filter directly when a page uses it often:
 
@@ -269,13 +362,27 @@ Under `rack_test`, `click` loads the file: read it from `page.body`. A JavaScrip
 
 ### Batch actions
 
-Actions are found by label (`"Delete Selected"`) or by name (`:destroy`). `apply` opens the menu, clicks the action, and accepts its confirmation.
+Actions are found by label (`"Delete Selected"`) or by name (`:destroy`). `apply(label, inputs = {})` opens the menu and clicks the action. An action with `confirm:` or `form:` opens ActiveAdmin's modal dialog: `apply` sets each of `inputs` by field name and clicks OK.
 
 ```ruby
 index.table.row(customer.id).select
 index.batch_actions.select_all
 index.batch_actions.apply(:destroy)
+index.batch_actions.apply("Set Status Selected", status: "pending")
 expect(index.batch_actions).to have_action("Flag Selected")
+```
+
+### Modal dialog
+
+`page.modal_dialog` is the dialog ActiveAdmin opens for batch actions. Use it to drive the dialog yourself, for example to cancel:
+
+```ruby
+dialog = index.modal_dialog
+dialog.title # => "Are you sure you want to do this?"
+dialog.fill("status", with: "pending") # input or select, by field name
+expect(dialog).to have_field("status")
+dialog.confirm # or dialog.cancel
+expect(index).to have_no_modal_dialog
 ```
 
 ### Form
@@ -296,7 +403,7 @@ form.submit
 - `Form::BooleanField` for `boolean`: `fill(true)` ticks the checkbox and `fill(false)` unticks it. `checked?`.
 - `Form::RadioField` for `radio`: `fill` picks the radio button with that label. `options` and `selected`.
 - `Form::CheckBoxesField` for `check_boxes`: `fill` takes an array of labels, ticks them and unticks the others. `check(*labels)`, `uncheck(*labels)` and `checked`.
-- `Form::DatePickerField` for `date_picker`, a native `<input type="date">`: `fill` takes a Date or a string such as `"2026-01-31"`.
+- `Form::DatePickerField` for `datepicker`: `fill` takes a Date or a string and types it in. It does not use the jQuery UI datepicker.
 - `Form::FileField` for `file`: `fill` takes the path of the file and attaches it. A JavaScript driver needs an absolute path.
 - `Form::Field` for any other class: `fill` types text, picks a select option or ticks a checkbox, by what the wrapper holds.
 
@@ -324,7 +431,7 @@ form.field(:code).disabled? # => true, without waiting
 
 - A field is disabled when every control in it is: the input, the select, or each radio button or checkbox of a field with choices. It is enabled when a control is not disabled. Hidden inputs do not count.
 - `have_no_disabled_field` and `have_no_enabled_field` also pass when the form has no such field.
-- The matchers wait, and take `visible:` like `field`.
+- The matchers wait, and take `visible:` like `field`. A has_many fieldset has them too.
 
 #### Form errors
 
@@ -343,14 +450,47 @@ expect(form).to have_exact_semantic_errors("Name is reserved", "Balance is negat
 form.semantic_errors # => ["Name is reserved", "Balance is negative"]
 ```
 
-- `have_field_errors` and `have_no_field_errors` look at the whole form.
-- `have_exact_field_errors` takes each field with its message, or an array of messages. Every one of these fields shows exactly these messages, and no other field shows an error. Without arguments it passes when no field shows an error. Its keywords are field names, so it takes no Capybara options and no `visible:`. See [Hidden elements](#hidden-elements).
+- `have_field_errors` and `have_no_field_errors` look at the whole form, has_many fieldsets included.
+- `have_exact_field_errors` takes each field with its message, or an array of messages. Every one of these fields shows exactly these messages, and no other field shows an error. Without arguments it passes when no field shows an error. It leaves out the fields of has_many fieldsets: ask each fieldset. Its keywords are field names, so it takes no Capybara options and no `visible:`. See [Hidden elements](#hidden-elements).
 - `have_exact_semantic_errors` compares the base errors exactly and case-sensitively: the same messages, in any order. `strict_order: true` compares the order too. Without messages it passes when the form shows no base error.
 - `have_no_exact_field_errors` and `have_no_exact_semantic_errors` wait until the errors differ.
 
+### Has many
+
+`form.has_many(association)` returns a `HasMany` for a `has_many` block. Fieldsets are 0-based. A fieldset has the field methods of the form: `field`, `fill` and the field error matchers.
+
+```ruby
+orders = form.has_many(:orders)
+orders.heading # => "Orders"
+orders.count # => 2
+expect(orders).to have_fieldsets(count: 2)
+
+fieldset = orders.add # clicks the add link, returns the new fieldset
+fieldset.fill(reference: "REF-NEW", state: "shipped")
+orders.fieldset(0).field(:quantity).value # => "2"
+expect(orders.fieldset(0)).to have_exact_field_errors(quantity: "must be greater than 0")
+orders.remove(2) # a new fieldset: its remove link
+orders.remove(0) # a saved one: ticks its delete checkbox
+expect(orders.fieldset(0)).to be_marked_for_destroy
+```
+
+Declare the block on the form to declare the fields of its fieldsets: see [Declared has_many blocks](#declared-has_many-blocks).
+
 ### Tabs
 
-ActiveAdmin 4 removed the `tabs` component. `ActiveAdminPageObjects::Tabs` raises `RemovedInActiveAdmin4`. A theme that brings tabs back registers a `tabs` selector and patches the section.
+```ruby
+class CustomerShow < ActiveAdminPageObjects::Page
+  section :tabs, ActiveAdminPageObjects::Tabs
+end
+
+show.tabs.labels # => ["Overview", "Orders"]
+show.tabs.switch("Orders")
+show.tabs.current # => "Orders", or nil before jQuery UI sets the tabs up
+expect(show.tabs.body).to have_text("Order list")
+expect(show.tabs).to have_tab("Orders")
+```
+
+A String is the whole label, ignoring case. `switch`, `have_tab` and `have_no_tab` also take a Regexp, case-sensitive unless it has `/i`, for a label with a changing part: `show.tabs.switch(/\AOrders \(\d+\)\z/)`.
 
 ## Declared labels
 
@@ -404,14 +544,14 @@ SitePrism 5 and 6 turn the block into a subclass of the section class. A named s
 
 ### Declarations define no methods
 
-A declaration defines no method on the section, so any name is valid, including `name` and `title`. Reach an element with `filter(name)` or `field(name)`:
+A declaration defines no method on the section, so any name is valid, including `name` and `title`. Reach an element with `filter(name)`, `field(name)` or `has_many(name)`:
 
 ```ruby
 index.filters.filter(:balance).fill_in(with: 100, predicate: :gt)
 form_page.form.field(:status).fill("pending")
 ```
 
-The name is the formtastic attribute or the ActiveAdmin filter key, and the only key: `field :name, "Name", ActiveAdminPageObjects::Form::StringField` is reached with `field(:name)`, `has_field_error?(:name)` and `fill(name: ...)`. A subclass can declare an inherited name again.
+The name is the formtastic attribute or the ActiveAdmin filter key, and the only key: `field :id, "Gateway", ActiveAdminPageObjects::Form::SelectField` is reached with `field(:id)`, `has_field_error?(:id)` and `fill(id: ...)`. A subclass can declare an inherited name again.
 
 For shortcuts, write your own methods in the section block.
 
@@ -420,12 +560,12 @@ For shortcuts, write your own methods in the section block.
 `filters.filter(name)` and `form.field(name)` return an instance of the declared class. To use your own field or filter class, declare it. It is a subclass of the gem's class for that input:
 
 ```ruby
-class MySelectField < ActiveAdminPageObjects::Form::SelectField
+class Select2Field < ActiveAdminPageObjects::Form::SelectField
   # drives the widget: see Hidden selects below
 end
 
 section :form, ActiveAdminPageObjects::Form do
-  field :status, "Status", MySelectField
+  field :id, "Gateway", Select2Field
 end
 ```
 
@@ -437,16 +577,16 @@ The gem detects its classes by the formtastic class of the wrapper, and returns 
 
 ### Hidden selects
 
-`SelectFilter`, `BooleanFilter`, `Form::SelectField`, `Form::Field` and the predicate select of `StringFilter` and `NumericFilter` find the native `<select>` as Capybara finds elements by default, and leave out a select marked `aria-hidden="true"`. When it is hidden or marked so, as a JavaScript select widget leaves it, picking and reading raise `Capybara::ElementNotFound`: `select_option`, `fill`, `selected`, `options`, `have_selected`, `have_option`, `have_item`, `have_disabled` and their `have_no_` forms. A page object that declares `SelectFilter` on a widget fails, and does not drive the select behind the widget.
+`SelectFilter`, `BooleanFilter`, `Form::SelectField`, `Form::Field` and the predicate select of `StringFilter` and `NumericFilter` find the native `<select>` as Capybara finds elements by default, and leave out a select marked `aria-hidden="true"`. When it is hidden or marked so, as a JavaScript select widget such as select2 leaves it, picking and reading raise `Capybara::ElementNotFound`: `select_option`, `fill`, `selected`, `options`, `have_selected`, `have_option`, `have_item`, `have_disabled` and their `have_no_` forms. A page object that declares `SelectFilter` on a widget fails, and does not drive the select behind the widget.
 
 For a widget, declare your own class. Override the method that picks, to drive the widget, and the private `native_select_visibility`, to read the select the widget hides:
 
 ```ruby
-class MySelectFilter < ActiveAdminPageObjects::SelectFilter
+class Select2Filter < ActiveAdminPageObjects::SelectFilter
   def select_option(label)
-    find(".my-widget-toggle").click
-    # the widget may append its dropdown to <body>, outside the filter
-    root_element.session.find(".my-widget-option", exact_text: label).click
+    find(".select2-selection").click
+    # select2 appends the dropdown to <body>, outside the filter.
+    root_element.session.find(".select2-results__option", exact_text: label).click
   end
 
   private
@@ -457,7 +597,7 @@ class MySelectFilter < ActiveAdminPageObjects::SelectFilter
 end
 
 section :filters, ActiveAdminPageObjects::Filters do
-  filter :customer, "Customer", MySelectFilter
+  filter :customer, "Customer", Select2Filter
 end
 
 filters.filter(:customer).select_option("Acme") # clicks the widget
@@ -465,16 +605,43 @@ expect(filters.filter(:customer)).to have_selected("Acme") # reads the hidden <s
 ```
 
 - `native_select_visibility` returns the Capybara `visible:` value of every lookup of the native `<select>`: `:all`, `:hidden`, `:visible`, `true` or `false`. The default is `nil`: no `visible:`, so `Capybara.ignore_hidden_elements` decides.
-- A lookup of visible elements also leaves out a select marked `aria-hidden="true"`, on every driver. A widget may clip its select to one pixel, which Cuprite reports as visible, and mark it `aria-hidden`. `:all` takes that select too.
+- A lookup of visible elements also leaves out a select marked `aria-hidden="true"`, on every driver. select2 clips its select to one pixel, which Cuprite reports as visible, and marks it `aria-hidden`. `:all` takes that select too.
 - With `:all` the inherited methods pick from the hidden select and read it. Override the ones that have to go through the widget.
 - A `Form::SelectField` subclass overrides `fill` the same way.
+
+### Declared has_many blocks
+
+`has_many(name, heading, &block)` declares a `has_many` block of a form. `form.has_many(:gateways)` returns the `HasMany`. The block declares the fields of a fieldset, by the same rules.
+
+```ruby
+section :form, ActiveAdminPageObjects::Form do
+  field :email, "Email", ActiveAdminPageObjects::Form::StringField
+  has_many :gateways, "Gateways" do
+    field :id, "Gateway", ActiveAdminPageObjects::Form::SelectField
+  end
+
+  def add_gateway(name) = has_many(:gateways).add.field(:id).fill(name)
+end
+
+form.has_many(:gateways).add.field(:id) # the SelectField of the new fieldset
+form.has_many(:gateways).fieldset(0).field(:id).selected
+expect(form.has_many(:gateways)).to have_fieldsets(count: 2)
+expect(form.has_many(:gateways).fieldsets).to all(have_exact_fields)
+```
+
+`fieldsets` reads the page once, and `all` passes on an empty list, so check the count first.
+
+- `heading` is the text of the block's `h3`. The form's label matchers compare it. Pass `nil` when the form uses `heading: false`.
+- `name` is the association.
+- A form that declares has_many blocks raises `ArgumentError` from `has_many(association)` for any other association.
 
 ### Label matchers
 
 `have_declared_columns`, `have_declared_filters`, `have_declared_rows` and `have_declared_fields` pass when every declared element is on the page with exactly its label. The comparison is exact and case-sensitive, so `"External id"` does not match `"External ID"`. Only whitespace is normalized.
 
-- CSS `text-transform` does not change the result, on any driver. ActiveAdmin 4 uppercases the `th` of both tables in CSS; declare the label as the DOM has it, such as `"External ID"`.
+- CSS `text-transform` does not change the result, on any driver.
 - In filter and form labels, the text of links, buttons and `abbr` elements is not part of the label. That drops the required marker (`*`) and controls that plugins append, such as the date range preset's "Set range" link.
+- `have_declared_fields` on a form also compares the headings of the declared has_many blocks. The fields of a fieldset are compared on the fieldset.
 - The order is not checked. Elements that are on the page but not declared are ignored: the exact matchers catch those.
 - They wait like the other matchers. `have_no_declared_columns` and the other three wait until a label differs.
 - They raise `ArgumentError` on a section that declares nothing.
@@ -483,12 +650,11 @@ expect(filters.filter(:customer)).to have_selected("Acme") # reads the hidden <s
 
 `have_exact_columns`, `have_exact_filters`, `have_exact_rows` and `have_exact_fields` pass when the label matcher passes and the page has no other element of that kind:
 
-- Rows: the `tr[data-row]` of the attributes table.
-- Columns: the `th[data-column]` of the table, and the untitled selection and actions columns.
+- Rows: the `tr.row-*` of the attributes table.
+- Columns: the `th.col-*` of the table, the untitled selection and actions columns included.
 - Filters: the filter wrappers of the filter form.
-- Form fields: the input wrappers of the form. `as: :hidden` inputs are not fields.
-
-ActiveAdmin 4 writes no `data-column` on an untitled column. The selection column is the one whose header holds the toggle-all checkbox, and the actions column is the one whose cells hold the row actions. Any other untitled column has no key, so the matchers leave it out.
+- Form fields: the input wrappers outside the has_many blocks, and each has_many block. `as: :hidden` inputs are not fields.
+- Fieldset fields: the input wrappers of the fieldset. The delete checkbox and a has_many block nested in the fieldset are left out.
 
 Only visible elements count: see [Hidden elements](#hidden-elements).
 
@@ -509,12 +675,13 @@ expect(form_page.form).to have_declared_fields(only: %i[email status])
 
 ### Hidden elements
 
-Lookups and matchers see only visible elements, as Capybara does by default. A hidden field, filter, row or column is not found. The label matchers report it as missing, and the exact matchers do not count it as unexpected.
+Lookups and matchers see only visible elements, as Capybara does by default. A hidden field, filter, row, column or has_many block is not found. The label matchers report it as missing, and the exact matchers do not count it as unexpected.
 
 Pass `visible: :all` to a call to take hidden elements too:
 
 ```ruby
 form.field(:notes, visible: :all)
+form.has_many(:orders, visible: :all)
 filters.filter(:email, visible: :all)
 show.attributes_table.row(:email, visible: :all)
 show.attributes_table.value(:email, visible: :all)
@@ -536,7 +703,7 @@ form.field(:notes) # found when it is hidden too
 expect(form).to have_exact_fields # passes with the notes field hidden or shown
 ```
 
-- `row`, `column`, `filter` and `field` take `visible:`. Every lookup and matcher then finds that element with it.
+- `row`, `column`, `filter`, `field` and `has_many` take `visible:`. Every lookup and matcher then finds that element with it.
 - `visible:` on a call overrides the declaration: `form.field(:notes, visible: :visible)`. It takes Capybara's values: `:all`, `:hidden`, `:visible`, `true` and `false`.
 - On a matcher, `visible:` applies to every element: the declared ones and the ones that are not declared.
 - `have_exact_field_errors` has no `visible:` option, because its keywords are field names. It counts the errors of the visible fields and of the fields declared with `visible:`.
@@ -574,7 +741,7 @@ expected exactly the declared rows (except: notes), but:
 - `not_to have_exact_rows` calls `has_no_exact_rows?`, so it waits for the page to differ.
 - On an object that declares nothing, each one is RSpec's predicate matcher.
 
-The module also defines `have_exact_field_errors`, `have_exact_semantic_errors` and their `have_no_` forms, for a form:
+The module also defines `have_exact_field_errors`, `have_exact_semantic_errors` and their `have_no_` forms, for a form and for a has_many fieldset:
 
 ```ruby
 expect(form).to have_exact_field_errors(name: "is reserved", notes: "is too long")
@@ -616,20 +783,20 @@ index.table.exact_mismatches
 
 ### Strict names
 
-A section that declares anything raises `ArgumentError` for every other name, before it queries the page. The message gives the name and lists the declared ones. A section without declarations takes any key, as before.
+A section that declares anything raises `ArgumentError` for every other name, before it queries the page. `Form#has_many` is the exception: it checks the name only when the form declares has_many blocks. The message gives the name and lists the declared ones. A section without declarations takes any key, as before.
 
-- `AttributesTable`: `has_row?`, `has_no_row?`, `row` and `value`.
-- `Table`: its rows' `cell`, `has_cell?` and `has_no_cell?`.
+- `AttributesTable`: `has_row?`, `has_no_row?`, `row`, `value`, `status_tag`, `status_tags`, `has_status_tag?` and `has_no_status_tag?`.
+- `Table`: `sort_by` and `has_sortable_column?`. Its rows: `cell`, `has_cell?`, `has_no_cell?`, `status_tag`, `status_tags`, `has_status_tag?` and `has_no_status_tag?`.
 - `Filters`: `filter`.
-- `Form`: `field`, `fill`, `has_field_error?`, `has_no_field_error?`, `has_exact_field_errors?`, `has_no_exact_field_errors?`, `has_disabled_field?`, `has_enabled_field?` and their `has_no_` forms.
+- `Form` and the fieldsets of a declared has_many: `field`, `fill`, `has_field_error?`, `has_no_field_error?`, `has_exact_field_errors?`, `has_no_exact_field_errors?`, `has_disabled_field?`, `has_enabled_field?` and their `has_no_` forms.
 
-Filters and fields take the declared name: `form.field(:name)` and `have_field_error(:name)`.
+Filters and fields take the declared name: `form.field(:id)` and `have_field_error(:id)`.
 
 Names compare as everywhere else: `:external_id`, `"external_id"` and `"External ID"` are the same name.
 
 ## Matchers shared with capybara_active_admin
 
-[capybara_active_admin](https://github.com/activeadmin-plugins/capybara_active_admin) defines RSpec matchers for Capybara's `page`, such as `have_page_title`, `have_table` and `have_semantic_errors`. In an example group that includes them, they replace the predicate matchers of the page objects: `expect(index).to have_page_title(text: "Customers")` calls the matcher of that gem.
+[capybara_active_admin](https://github.com/activeadmin-plugins/capybara_active_admin) defines RSpec matchers for Capybara's `page`, such as `have_page_title`, `have_table` and `have_status_tag`. In an example group that includes them, they replace the predicate matchers of the page objects: `expect(index).to have_page_title(text: "Customers")` calls the matcher of that gem.
 
 `ActiveAdminPageObjects::RSpec::Matchers` defines the same names for both. Include it after capybara_active_admin's matchers, so it takes precedence. The module also gives the label and exact matchers their [failure messages](#failure-messages).
 
@@ -652,11 +819,16 @@ It covers the matchers of capybara_active_admin 1.0.0: `have_action_item`, `have
 
 These need a JavaScript driver such as Cuprite or Selenium:
 
-- `BatchActions#apply`: ActiveAdmin's JavaScript opens the menu and submits the form.
+- `BatchActions#apply` and `ModalDialog`: ActiveAdmin's JavaScript opens the menu and the dialog and submits the form.
+- `Filters#clear` and `FiltersFooter#clear`: the "Clear Filters" link is `href="#"`.
+- `Tabs#switch` and `Tabs#current`: jQuery UI switches the tabs. Without JavaScript every tab body is shown.
+- `DropdownMenu#open` and `#click`: the button toggles the menu. Without JavaScript the list is always shown.
+- `HasMany#add` and `#remove`: the JavaScript adds and removes the fieldsets.
+- `Comments#delete`: the link asks the browser to confirm.
 - `StringFilter#fill_in` and `NumericFilter#fill_in` with a predicate other than the selected one: the JavaScript renames the input when the predicate changes.
 - `Form::Field#force_fill`: it sets the value with a script.
 
-Everything else works with `rack_test` too, including `MainMenu#go` and `MainMenu#click`, filters with the current predicate, plain selects, date ranges, scopes, pagination and forms.
+Everything else works with `rack_test` too, including `MainMenu#go` and `MainMenu#click` (without hovering), filters with the current predicate, plain selects, date ranges, scopes, pagination, sorting and forms.
 
 ## Selectors
 
@@ -689,7 +861,7 @@ class AuditPanel < ActiveAdminPageObjects::Section
 end
 ```
 
-`register_selectors` can also replace a key that ActiveAdmin 4 removed, such as `tabs`.
+`register_selectors` also replaces a key of the gem, for example a theme's own `main_menu`.
 
 Add a section or an element to every page that includes `Layout`, including page classes defined earlier:
 
@@ -698,7 +870,7 @@ ActiveAdminPageObjects::Layout.add_section(:audit_panel, AuditPanel)
 ActiveAdminPageObjects::Layout.add_element(:banner, ".banner")
 ```
 
-To use your own field or filter class, declare it on the section: `field :status, "Status", MySelectField`. It is a subclass of the gem's class for that input, or of `ActiveAdminPageObjects::Form::Field` or `ActiveAdminPageObjects::Filter` for an input class the gem has no class for. See [Declared types](#declared-types).
+To use your own field or filter class, declare it on the section: `field :id, "Gateway", Select2Field`. It is a subclass of the gem's class for that input, or of `ActiveAdminPageObjects::Form::Field` or `ActiveAdminPageObjects::Filter` for an input class the gem has no class for. See [Declared types](#declared-types).
 
 ### Registered input classes
 
@@ -742,7 +914,7 @@ A theme or plugin ships its own page objects in its own repository, with one ent
 ```ruby
 # lib/my_plugin/page_objects.rb
 require "active_admin_page_objects"
-ActiveAdminPageObjects.check_version!(">= 2.0.0.a", "< 3.0.0.a", plugin: "my_plugin")
+ActiveAdminPageObjects.check_version!(">= 1.0.0.a", "< 2.0.0.a", plugin: "my_plugin")
 
 module MyPlugin
   class Widget < ActiveAdminPageObjects::Section
@@ -759,11 +931,12 @@ Apps load it with `require "my_plugin/page_objects"`.
 
 ```sh
 bundle install
-bundle exec rake # builds the dummy app's CSS (npm), runs rubocop and rspec
+bundle exec rspec
 BUNDLE_GEMFILE=gemfiles/site_prism_5.gemfile bundle exec rspec
+bundle exec rubocop
 ```
 
-The specs drive a Rails 8 dummy app with ActiveAdmin 4 (`spec/dummy`) through headless Chrome with Cuprite.
+The specs drive a Rails 8 dummy app with ActiveAdmin 3.5.2 (`spec/dummy`) through headless Chrome with Cuprite. The dummy app uses sprockets and dartsass-sprockets, so it needs no Node.
 
 ## License
 

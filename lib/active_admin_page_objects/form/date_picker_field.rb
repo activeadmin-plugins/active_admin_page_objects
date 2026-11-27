@@ -4,11 +4,12 @@ require_relative "string_field"
 
 module ActiveAdminPageObjects
   class Form
-    # An `as: :date_picker` field: a native `<input type="date">`.
+    # An `as: :datepicker` field: a text input with a jQuery UI datepicker.
+    # The date is typed in, not picked.
     class DatePickerField < StringField
-      # Sets the date: a Date, or a string such as "2026-01-31".
+      # Types the date: a Date, or a string such as "2026-01-31".
       def fill(value)
-        input.set(iso_date(value))
+        type_date(input, iso_date(value))
       end
     end
   end
