@@ -155,6 +155,30 @@ expect(table).to have_row_with(:status, "Failed")
 
 The section defaults to `table.data-table`. Pass a locator for another table, such as a `table_for` inside a panel: `section :orders, ActiveAdminPageObjects::Table, "#orders_panel table"`.
 
+Sortable columns: ActiveAdmin 4 marks a sortable header with `data-sortable` and the sorted one with `data-sort-direction`.
+
+```ruby
+expect(table).to have_sortable_column(:name)
+table.sort_by(:name) # clicks the header; an unsorted column sorts :desc first
+table.sort_by(:name, :asc) # clicks until the column shows :asc
+expect(table).to have_sort(:name, :asc) # also sorted_by?(:name, :asc)
+expect(table).to have_no_sort(:email)
+table.sort_direction(:id) # => :desc, without waiting
+```
+
+#### Status tags
+
+A row of an index table or an attributes table finds the `status_tag` in a cell. `status:` compares the tag's `data-status`, and `type:` is an alias of it; passing both raises `ArgumentError`. A String label is the whole text, ignoring case; a Regexp matches part of it.
+
+```ruby
+row = index.table.row(customer.id)
+expect(row).to have_status_tag(:status, "Pending", status: :pending)
+expect(row).to have_no_status_tag(:status, status: :failed)
+row.status_tag(:status).status # => "pending"
+row.status_tags(:flags).map(&:label)
+expect(show.attributes_table).to have_status_tag(:active, status: true) # true is "yes", false is "no"
+```
+
 ### Attributes table
 
 Rows are keyed by the `row :foo` symbol, or by the label parameterized with `_`. As in the index table, a String `text:` or `exact_text:` ignores case.
@@ -191,6 +215,25 @@ section :routes, ActiveAdminPageObjects::Panel, :active_admin_panel, /\APossible
 
 show.panel(/\APossible Routes/).title # => "Possible Routes (2)"
 ```
+
+A panel nested in another panel's body is found by its own title, and the outer panel's `title` and `body` are its own.
+
+### Comments
+
+Declare the comments of a show page; ActiveAdmin renders them when the resource has `config.comments = true`. A custom `show` block must call `active_admin_comments_for(resource)`.
+
+```ruby
+section :comments, ActiveAdminPageObjects::Comments
+
+show.comments.count # from the "All Comments (N)" title
+show.comments.bodies
+show.comments.authors
+expect(show.comments).to have_comment("Called the customer")
+show.comments.add("Called the customer")
+show.comments.delete("Called the customer") # accepts the browser confirm
+```
+
+The base `form` selector leaves the comment form out.
 
 ### Filters
 
@@ -327,6 +370,30 @@ form.field(:code).disabled? # => true, without waiting
 - A field is disabled when every control in it is: the input, the select, or each radio button or checkbox of a field with choices. It is enabled when a control is not disabled. Hidden inputs do not count.
 - `have_no_disabled_field` and `have_no_enabled_field` also pass when the form has no such field.
 - The matchers wait, and take `visible:` like `field`.
+
+#### has_many
+
+Declare a has_many block with its heading and the fields of one fieldset, then reach it with `form.has_many`:
+
+```ruby
+section :form, ActiveAdminPageObjects::Form do
+  field :reference, "Reference", ActiveAdminPageObjects::Form::StringField
+  has_many :line_items, "Line Items" do
+    field :sku, "Sku", ActiveAdminPageObjects::Form::StringField
+  end
+end
+
+items = form_page.form.has_many(:line_items)
+items.heading # => "Line Items"
+items.count # number of fieldsets
+items.add.fill(sku: "SKU-1") # clicks the add link
+items.fieldset(0).field(:sku).value
+items.remove(0) # the remove link of a new fieldset, the delete checkbox of a saved one
+items.fieldset(0).marked_for_destroy?
+expect(items).to have_fieldsets(count: 2)
+```
+
+A fieldset has the form's field API. `have_exact_fields` counts a has_many block once, as its declared element, and skips its inner inputs; ask each fieldset for its own. The destroy checkbox is not a field, and asking for a has_many name as a field raises `ArgumentError`.
 
 #### Form errors
 
@@ -657,6 +724,8 @@ These need a JavaScript driver such as Cuprite or Selenium:
 - `BatchActions#apply`: ActiveAdmin's JavaScript opens the menu and submits the form.
 - `StringFilter#fill_in` and `NumericFilter#fill_in` with a predicate other than the selected one: the JavaScript renames the input when the predicate changes.
 - `Form::Field#force_fill`: it sets the value with a script.
+- `HasMany#add` and `#remove` on a new fieldset: ActiveAdmin's JavaScript adds and removes the fieldset.
+- `Comments#delete`: it accepts the browser confirm.
 
 Everything else works with `rack_test` too, including `MainMenu#go` and `MainMenu#click`, filters with the current predicate, plain selects, date ranges, scopes, pagination and forms.
 

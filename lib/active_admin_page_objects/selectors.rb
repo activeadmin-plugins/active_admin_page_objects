@@ -40,6 +40,12 @@ module ActiveAdminPageObjects
       # The cells of the actions column at a 1-based column position.
       table_actions_cell: "tbody > tr > td:nth-child(%s) .data-table-resource-actions",
       table_row_actions_cell: "td:has(.data-table-resource-actions)",
+      table_sortable_header: 'thead th[data-column="%s"][data-sortable]',
+      table_sorted_header: 'thead th[data-column="%s"][data-sort-direction]',
+      table_sorted_header_in: 'thead th[data-column="%s"][data-sort-direction="%s"]',
+      table_sort_link: "a",
+      status_tag: ".status-tag",
+      status_tag_with_status: '[data-status="%s"]',
       blank_slate: ".main-content-container .border-dashed",
 
       attributes_table: ".attributes-table",
@@ -79,9 +85,16 @@ module ActiveAdminPageObjects
       batch_actions_button: ".batch-actions-dropdown-toggle",
       batch_action_item: "[data-batch-action-item]",
 
-      form: "form.formtastic",
+      form: "form.formtastic:not(.active_admin_comment)",
       # Hidden inputs are not fields.
-      form_input_wrapper: "li.input:not(.hidden)",
+      form_input_wrapper: "li.input:not(.hidden):not(.has-many-delete)",
+      has_many_container: ".has-many-container",
+      has_many: '.has-many-container[data-has-many-association="%s"]',
+      has_many_heading: "h3.has-many-fields-title",
+      has_many_fieldset: "fieldset.has-many-fields",
+      has_many_add: "a.has-many-add",
+      has_many_remove: "a.has-many-remove",
+      has_many_delete: "li.has-many-delete input[type=checkbox]",
       form_input: "li#%s_%s_input",
       form_choice: "li.choice label",
       # The hidden input of a boolean or check_boxes wrapper is not a control.
@@ -89,6 +102,15 @@ module ActiveAdminPageObjects
       form_inline_error: ".inline-errors",
       form_semantic_error: "ul.errors > li",
       form_submit: "fieldset.actions input[type=submit], fieldset.actions button[type=submit]",
+      comments: "#active-admin-comments-form",
+      # The comments block has two bold titles: "Comments", then "All Comments (N)".
+      comments_title: "div.font-bold:not(:first-child)",
+      comment: "[data-test-comment-container]",
+      comment_body: "[data-test-comment-container] > div:nth-child(2)",
+      comment_author: "[data-test-comment-container] > div:first-child > span:first-child",
+      comment_delete: '[data-test-comment-container] > a[data-method="delete"]',
+      comment_input: 'textarea[name="comment[body]"]',
+      comment_submit: "form fieldset.actions input[type=submit], form fieldset.actions button[type=submit]",
 
       tabs: REMOVED
     }.freeze

@@ -18,6 +18,14 @@ RSpec.describe ActiveAdminPageObjects::Panel do
       )
       expect(dashboard.panel("Stats").links).to eq([])
     end
+
+    it "tells a panel from the panel nested in it" do
+      dashboard = Pages::Dashboard.new
+      dashboard.load
+      expect(dashboard.panel("Inner stats").body).to have_text("Nested.")
+      expect(dashboard.panel("Overview").title).to eq("Overview")
+      expect(dashboard.panel("Inner stats").title).to eq("Inner stats")
+    end
   end
 
   it_behaves_like "panel links"

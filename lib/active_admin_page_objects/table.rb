@@ -193,5 +193,108 @@ module ActiveAdminPageObjects
       header = keyed_headers(**visibility).assoc(key)&.last
       header && squish(header.text(:all))
     end
+
+    # Sorting by the header links. Included below the class body.
+    module Sorting
+      # True when the header of column +key+ is sortable.
+      def has_sortable_column?(key, **options)
+        has_css?(sortable_header_selector(key), **visibility_of(key), **options)
+      end
+
+      # Waits until the header of column +key+ is not sortable.
+      def has_no_sortable_column?(key, **options)
+        has_no_css?(sortable_header_selector(key), **visibility_of(key), **options)
+      end
+
+      # The direction the table is sorted by column +key+ in, or nil when it is
+      # not sorted by it. Does not wait.
+      # @return [Symbol, nil] :asc, :desc or nil
+      def sort_direction(key)
+        header = first(:css, sel(:table_column_header, slug(key)), minimum: 0, wait: false, **visibility_of(key))
+        direction = header && header[:"data-sort-direction"].to_s
+        direction.to_sym unless direction.nil? || direction.empty?
+      end
+
+      # True when the table is sorted by column +key+, in +direction+ (:asc or
+      # :desc) when given.
+      # @raise [ArgumentError] when +direction+ is neither :asc nor :desc
+      def has_sort?(key, direction = nil, **options)
+        has_css?(sorted_header_selector(key, direction), **visibility_of(key), **options)
+      end
+
+      # Waits until the table is not sorted by column +key+, in +direction+ when given.
+      # @raise [ArgumentError] when +direction+ is neither :asc nor :desc
+      def has_no_sort?(key, direction = nil, **options)
+        has_no_css?(sorted_header_selector(key, direction), **visibility_of(key), **options)
+      end
+      alias sorted_by? has_sort?
+      alias not_sorted_by? has_no_sort?
+
+      # Clicks the header link of column +key+ and waits for the page to show the
+      # new order. The link flips the direction, and an unsorted column sorts
+      # :desc first. With +direction+ it clicks until the column shows it, at
+      # most twice, and not at all when it already does.
+      # @raise [ArgumentError] when +direction+ is neither :asc nor :desc, or the column is not sortable
+      # @raise [Capybara::ExpectationNotMet] when the page does not show the direction in time
+      # @return [Symbol] the direction the column is sorted in
+      def sort_by(key, direction = nil)
+        wanted = sort_direction_name(direction)
+        (wanted ? 2 : 1).times do
+          header = sortable_header(key)
+          break if wanted && header[:"data-sort-direction"].to_s == wanted
+
+          click_sort_link(key, header)
+        end
+        shown = sort_direction(key)
+        raise Capybara::ExpectationNotMet, "#{key.inspect} is not sorted #{wanted}" if wanted && shown.to_s != wanted
+
+        shown
+      end
+
+      private
+
+      def sort_direction_name(direction)
+        return if direction.nil?
+        return direction.to_s if %w[asc desc].include?(direction.to_s)
+
+        raise ArgumentError, "sort direction must be :asc or :desc, got #{direction.inspect}"
+      end
+
+      def sortable_header_selector(key)
+        declaration_for(key)
+        sel(:table_sortable_header, slug(key))
+      end
+
+      def sorted_header_selector(key, direction)
+        declaration_for(key)
+        name = sort_direction_name(direction)
+        name ? sel(:table_sorted_header_in, slug(key), name) : sel(:table_sorted_header, slug(key))
+      end
+
+      # The header of column +key+, found with a wait.
+      def sortable_header(key)
+        header = find(:css, sel(:table_column_header, slug(key)), **visibility_of(key))
+        return header if has_css?(sortable_header_selector(key), wait: false, **visibility_of(key))
+
+        raise ArgumentError, "#{key.inspect} is not a sortable column"
+      end
+
+      def click_sort_link(key, header)
+        link = header.find(:css, sel(:table_sort_link))
+        direction = link_direction(link)
+        raise ArgumentError, "the header link of #{key.inspect} has no order param" unless direction
+
+        link.click
+        raise Capybara::ExpectationNotMet, "#{key.inspect} is not sorted #{direction}" unless has_sort?(key, direction)
+      end
+
+      # The link's `order` param ends in the direction the click sorts by.
+      def link_direction(link)
+        query = href_attribute(link).partition("?").last
+        URI.decode_www_form(query).to_h["order"].to_s[/_(asc|desc)\z/, 1]
+      end
+    end
+
+    include Sorting
   end
 end

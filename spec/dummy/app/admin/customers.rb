@@ -44,12 +44,18 @@ ActiveAdmin.register Customer do
     column :name
     column :email
     column :external_id
-    column :status
+    column(:status) { |customer| status_tag customer.status }
     column :balance
     column :active
     column :category
     column "Created", :created_at
     column :notes if params[:with_notes]
+    if params[:with_flags]
+      column :flags do |customer|
+        status_tag customer.status
+        status_tag customer.active
+      end
+    end
     actions
   end
 
@@ -58,7 +64,7 @@ ActiveAdmin.register Customer do
       row :name
       row :email
       row :external_id
-      row :status
+      row(:status) { |customer| status_tag customer.status }
       row :balance
       row :category
       row "Signed up", &:created_at

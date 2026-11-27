@@ -125,4 +125,20 @@ module Pages
 
     section :table, ActiveAdminPageObjects::Table
   end
+
+  class OrderForm < ActiveAdminPageObjects::Page
+    set_url "/admin/orders{/id}{/action}"
+
+    section :form, ActiveAdminPageObjects::Form do
+      field :reference, "Reference", ActiveAdminPageObjects::Form::StringField
+      field :state, "State", ActiveAdminPageObjects::Form::SelectField
+      field :quantity, "Quantity", ActiveAdminPageObjects::Form::StringField
+      field :customer, "Customer", ActiveAdminPageObjects::Form::SelectField
+      has_many :line_items, "Line Items" do
+        field :sku, "Sku", ActiveAdminPageObjects::Form::StringField
+        field :kind, "Kind", ActiveAdminPageObjects::Form::SelectField
+        field :quantity, "Quantity", ActiveAdminPageObjects::Form::StringField
+      end
+    end
+  end
 end

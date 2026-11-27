@@ -10,16 +10,17 @@ module ActiveAdminPageObjects
   class Panel < Section
     selector_key :panel
 
-    # The panel title text.
+    # The panel title text. The panel's own title and body come before those
+    # of a panel nested in its body.
     # @return [String]
     def title
-      find(:active_admin, :panel_title).text.strip
+      find(:active_admin, :panel_title, match: :first).text.strip
     end
 
     # The panel body node, for content assertions.
     # @return [Capybara::Node::Element]
     def body
-      find(:active_admin, :panel_body)
+      find(:active_admin, :panel_body, match: :first)
     end
 
     # The links in the body: the text and the `href` attribute as written.

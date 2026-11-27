@@ -133,7 +133,7 @@ RSpec.describe ActiveAdminPageObjects::AttributesTable do
       expect(declared.class.declarations).to include("name" => { label: "Name" }, "email" => { label: "Email", visible: :all })
       expect(declared.row(:email)[:"data-row"]).to eq("email")
       expect(declared.value(:email)).to eq(customer.email)
-      expect(declared.value(:status)).to eq("active")
+      expect(declared.value(:status)).to eq("Active")
       expect(declared).to have_row(:email, exact_text: customer.email)
       expect(declared).to have_declared_rows
       expect(declared).to have_exact_rows(only: %i[name email])

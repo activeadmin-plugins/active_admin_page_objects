@@ -3,9 +3,9 @@
 require_relative "fields/states"
 
 module ActiveAdminPageObjects
-  # The fields of a formtastic form. Form includes it. A field is named by its
-  # attribute, as in `f.input :name`, or by its declared name when the section
-  # declares fields:
+  # The fields of a formtastic form, or of one has_many fieldset. Form and
+  # HasMany::Fieldset include it. A field is named by its attribute, as in
+  # `f.input :name`, or by its declared name when the section declares fields:
   #
   #   section :form, ActiveAdminPageObjects::Form do
   #     field :email, "Email", ActiveAdminPageObjects::Form::StringField
@@ -71,20 +71,21 @@ module ActiveAdminPageObjects
       has_no_css?(field_error_selector(name), **visibility_of(name), **given(text: text), **options)
     end
 
-    # True when any field shows an inline error.
+    # True when any field shows an inline error, has_many fieldsets included.
     def has_field_errors?(**options)
       has_css?(sel(:form_inline_error), **options)
     end
 
-    # Waits until no field shows an inline error.
+    # Waits until no field shows an inline error, has_many fieldsets included.
     def has_no_field_errors?(**options)
       has_no_css?(sel(:form_inline_error), **options)
     end
 
     # True when the inline errors are exactly +errors+: field name => message,
-    # or an array of messages. No other field shows an error. Every keyword is
-    # a field name, so there is no `visible:` option: a hidden field counts
-    # only when it is declared with `visible:`.
+    # or an array of messages. No other field shows an error. The fields of
+    # has_many fieldsets are left out: ask each fieldset. Every keyword is a
+    # field name, so there is no `visible:` option: a hidden field counts only
+    # when it is declared with `visible:`.
     def has_exact_field_errors?(**errors)
       exact_field_errors?(true, errors)
     end
@@ -129,7 +130,9 @@ module ActiveAdminPageObjects
 
     # The attribute of the field +name+, checked against the declarations when fields are declared.
     def field_key(name)
-      declaration_for(name)
+      declaration = declaration_for(name)
+      raise ArgumentError, "#{name.inspect} is declared as a has_many, not as a field" if declaration&.fetch(:kind) == :has_many
+
       slug(name)
     end
 
@@ -143,10 +146,17 @@ module ActiveAdminPageObjects
       "#{field_selector(name)} #{sel(:form_inline_error)}"
     end
 
-    # The attributes of the input wrappers on the page.
+    # The attributes of the input wrappers on the page. The wrappers inside a
+    # has_many block belong to its fieldsets and are left out: the hidden ones
+    # too, so that query takes every wrapper.
     def field_keys(prefix, **visibility)
-      wrappers = all(:active_admin, :form_input_wrapper, wait: false, **visibility)
-      wrappers.filter_map { |wrapper| wrapper[:id].to_s[/\A#{Regexp.escape(prefix)}_(.+)_input\z/, 1] }
+      containers = all(:active_admin, :has_many_container, visible: :all, wait: false)
+      nested = containers.flat_map { |node| wrapper_ids(node, visible: :all) }
+      (wrapper_ids(self, **visibility) - nested).filter_map { |id| id[/\A#{Regexp.escape(prefix)}_(.+)_input\z/, 1] }
+    end
+
+    def wrapper_ids(scope, **visibility)
+      scope.all(:active_admin, :form_input_wrapper, wait: false, **visibility).map { |wrapper| wrapper[:id].to_s }
     end
 
     # Attribute => sorted inline error texts, for the fields that show an error.

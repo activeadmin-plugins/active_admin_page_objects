@@ -40,7 +40,7 @@ RSpec.configure do |config|
 
   config.before do |example|
     Capybara.current_driver = example.metadata[:driver] || Capybara.default_driver
-    [Order, Customer, Category, Tag, Document].each(&:delete_all)
+    [LineItem, Order, Customer, Category, Tag, Document, ActiveAdmin::Comment].each(&:delete_all)
   end
 
   config.after do

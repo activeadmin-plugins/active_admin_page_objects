@@ -155,6 +155,75 @@ RSpec.describe ActiveAdminPageObjects::Table do
       expect(table.has_row_with?(:name, "Nobody", wait: 0)).to be(false)
       expect { table.row_with(:name, "Nobody", wait: 0) }.to raise_error(Capybara::ElementNotFound, /no row with :name/)
     end
+
+    it "tells the sortable columns" do
+      expect(table).to have_sortable_column(:name)
+      expect(table).to have_sortable_column("External ID")
+      expect(table).to have_sortable_column(:status)
+      expect(table).to have_sortable_column(:created)
+      expect(table).to have_no_sortable_column(:category)
+      expect(table).to have_no_sortable_column(:actions)
+      expect(table.has_sortable_column?(:category, wait: 0)).to be(false)
+      expect(table.has_no_sortable_column?(:name, wait: 0)).to be(false)
+      expect { table.has_sortable_column?(:secret) }.to raise_error(ArgumentError, /:secret is not declared/)
+    end
+
+    it "shows the sort the page loads with" do
+      expect(table).to have_sort(:id)
+      expect(table).to have_sort(:id, :desc)
+      expect(table).to have_no_sort(:id, :asc)
+      expect(table).to have_no_sort(:name)
+      expect(table.sort_direction(:id)).to eq(:desc)
+      expect(table.sort_direction(:name)).to be_nil
+      expect(table.has_sort?(:id, :asc, wait: 0)).to be(false)
+      expect(table.has_no_sort?(:id, wait: 0)).to be(false)
+      expect { table.has_sort?(:id, :up) }.to raise_error(ArgumentError, /:asc or :desc/)
+      expect { table.has_no_sort?(:id, "") }.to raise_error(ArgumentError, /:asc or :desc/)
+    end
+
+    describe "sorting" do
+      def sorted_names
+        index.table.rows.map { |row| row.cell(:name).text }
+      end
+
+      it "follows the header link, which sorts an unsorted column descending first" do
+        expect(index.table.sort_by(:name)).to eq(:desc)
+        expect(index.table).to have_sort(:name, :desc)
+        expect(index.table).to have_no_sort(:id)
+        expect(sorted_names).to eq(customers.map(&:name).reverse)
+        expect(index.table.sort_by(:name)).to eq(:asc)
+        expect(sorted_names).to eq(customers.map(&:name))
+      end
+
+      it "clicks until the column shows the direction" do
+        index.table.sort_by(:name, :asc)
+        expect(index.table).to have_sort(:name, :asc)
+        expect(sorted_names).to eq(customers.map(&:name))
+        index.table.sort_by(:name, :desc)
+        expect(index.table).to have_sort(:name, :desc)
+        expect(sorted_names).to eq(customers.map(&:name).reverse)
+      end
+
+      it "does not click when the column already shows the direction" do
+        expect(index.table.sort_by(:id, :desc)).to eq(:desc)
+        expect(sorted_names).to eq(customers.map(&:name).reverse)
+        expect(index.table.sort_by(:id, "asc")).to eq(:asc)
+        expect(sorted_names).to eq(customers.map(&:name))
+      end
+
+      it "takes a column by its label and a sort key that differs from it" do
+        expect(index.table.sort_by("Created", :asc)).to eq(:asc)
+        expect(index.table).to have_sort(:created, :asc)
+        expect(index.table).to have_no_sort(:id)
+      end
+
+      it "rejects a direction or a column it cannot sort by" do
+        expect { table.sort_by(:name, :up) }.to raise_error(ArgumentError, /:asc or :desc/)
+        expect { table.sort_by(:category) }.to raise_error(ArgumentError, /:category is not a sortable column/)
+        expect { table.sort_by(:secret) }.to raise_error(ArgumentError, /:secret is not declared/)
+        expect(table).to have_sort(:id, :desc)
+      end
+    end
   end
 
   it_behaves_like "index table"

@@ -37,8 +37,9 @@ Capybara.add_selector(:active_admin_panel) do
   locator_filter do |node, title|
     next true if title.nil?
 
-    titles = node.all(:css, ActiveAdminPageObjects.selector(:panel_title), visible: :all, wait: false)
-    titles.any? { |el| ActiveAdminPageObjects.text_match?(el.text(:all), title) }
+    # The panel's own title comes before the titles of panels nested in its body.
+    own = node.first(:css, ActiveAdminPageObjects.selector(:panel_title), visible: :all, minimum: 0, wait: false)
+    own && ActiveAdminPageObjects.text_match?(own.text(:all), title)
   end
 end
 
@@ -54,7 +55,9 @@ require_relative "active_admin_page_objects/page"
 require_relative "active_admin_page_objects/table/rows_by_cell"
 require_relative "active_admin_page_objects/table"
 require_relative "active_admin_page_objects/attributes_table"
+require_relative "active_admin_page_objects/status_tag"
 require_relative "active_admin_page_objects/panel"
+require_relative "active_admin_page_objects/comments"
 require_relative "active_admin_page_objects/filters"
 require_relative "active_admin_page_objects/filters_footer"
 require_relative "active_admin_page_objects/scopes"
@@ -63,4 +66,5 @@ require_relative "active_admin_page_objects/download_links"
 require_relative "active_admin_page_objects/batch_actions"
 require_relative "active_admin_page_objects/fields"
 require_relative "active_admin_page_objects/form"
+require_relative "active_admin_page_objects/has_many"
 require_relative "active_admin_page_objects/tabs"

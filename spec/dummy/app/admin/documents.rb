@@ -2,9 +2,10 @@
 
 # Not in the menu. It holds what the customer pages cannot take without
 # changing their declared elements: a file input, disabled inputs and a
-# title with a count.
+# title with a count, and the comments.
 ActiveAdmin.register Document do
   menu false
+  config.comments = true
   permit_params :name, :attachment, :state, :kind, :code, :archived
 
   filter :name
@@ -22,6 +23,7 @@ ActiveAdmin.register Document do
     panel "Possible Routes (2)" do
       para "Two routes."
     end
+    active_admin_comments_for(resource)
   end
 
   form do |f|

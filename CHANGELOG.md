@@ -6,6 +6,11 @@
 
 - `Table::Row#cell(:actions)`, `has_cell?(:actions)` and `Table#row_with(:actions, ...)` find the actions cell. ActiveAdmin 4 writes no `data-column` on it, so these lookups used to fail.
 - `Flashes#flash_types`, a private method that a theme overrides to add the flash types it renders.
+- `Comments` section for resource comments: `count`, `bodies`, `authors`, `has_comment?`, `add` and `delete`. The `form` selector leaves the comment form out.
+- has_many support: `Form.has_many`, `Form#has_many` and the `HasMany` section with fieldsets, `add`, `remove` and `marked_for_destroy?`. `have_exact_fields` counts a has_many block as one declared element, so a form with an undeclared has_many block reports it as unexpected.
+- Status tags: `Table::Row` and `AttributesTable` get `status_tag(key)`, `status_tags(key)`, `has_status_tag?(key, label = nil, status:)` and `has_no_status_tag?`. `type:` is an alias of `status:`.
+- Sorting: `Table#sort_by(key, direction = nil)`, `#sort_direction`, `#has_sort?` (alias `sorted_by?`), `#has_no_sort?`, `#has_sortable_column?` and `#has_no_sortable_column?`.
+- A panel nested in another panel is found by its own title; before, the outer panel matched too and Capybara raised `Ambiguous`.
 
 - `Table::Row#has_cell?`, `Table#has_row?`, `AttributesTable#has_row?` and their `has_no_` forms ignore case for a String `text:` or `exact_text:`. Chrome reports text as CSS shows it, so a theme that uppercases a value no longer breaks the match.
 - `StringFilter` and `NumericFilter` drive a filter whose key holds its predicate, such as `filter :uuid_eq`: ActiveAdmin renders a bare input without a predicate select.

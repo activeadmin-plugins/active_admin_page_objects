@@ -33,4 +33,23 @@ ActiveRecord::Schema.define do
   create_table :tags do |t|
     t.string :name
   end
+
+  create_table :line_items do |t|
+    t.references :order
+    t.string :sku, :kind
+    t.integer :quantity
+  end
+
+  create_table :active_admin_comments do |t|
+    t.string :namespace
+    t.text :body
+    t.references :resource, polymorphic: true
+    t.references :author, polymorphic: true
+    t.timestamps
+  end
+  add_index :active_admin_comments, :namespace
+
+  create_table :admin_users do |t|
+    t.string :name
+  end
 end

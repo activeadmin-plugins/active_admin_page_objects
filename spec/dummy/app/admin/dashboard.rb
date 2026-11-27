@@ -14,5 +14,10 @@ ActiveAdmin.register_page "Dashboard" do
     panel "Stats" do
       para "Nothing yet."
     end
+    panel "Overview" do
+      panel "Inner stats" do
+        para "Nested."
+      end
+    end
   end
 end
