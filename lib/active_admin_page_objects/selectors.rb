@@ -39,6 +39,7 @@ module ActiveAdminPageObjects
       table_row_checkbox: "input.batch-actions-resource-selection",
       # The cells of the actions column at a 1-based column position.
       table_actions_cell: "tbody > tr > td:nth-child(%s) .data-table-resource-actions",
+      table_row_actions_cell: "td:has(.data-table-resource-actions)",
       blank_slate: ".main-content-container .border-dashed",
 
       attributes_table: ".attributes-table",

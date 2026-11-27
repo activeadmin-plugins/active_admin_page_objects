@@ -4,6 +4,9 @@
 
 ### Added
 
+- `Table::Row#cell(:actions)`, `has_cell?(:actions)` and `Table#row_with(:actions, ...)` find the actions cell. ActiveAdmin 4 writes no `data-column` on it, so these lookups used to fail.
+- `Flashes#flash_types`, a private method that a theme overrides to add the flash types it renders.
+
 - `Table::Row#has_cell?`, `Table#has_row?`, `AttributesTable#has_row?` and their `has_no_` forms ignore case for a String `text:` or `exact_text:`. Chrome reports text as CSS shows it, so a theme that uppercases a value no longer breaks the match.
 - `StringFilter` and `NumericFilter` drive a filter whose key holds its predicate, such as `filter :uuid_eq`: ActiveAdmin renders a bare input without a predicate select.
 - `Form::Field#required?`, `#input` (the field's first control) and `#force_fill(text)`, which sets a text control's value with JavaScript past its `maxlength`.

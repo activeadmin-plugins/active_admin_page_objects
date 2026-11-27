@@ -71,7 +71,8 @@ module ActiveAdminPageObjects
 
       def cell_selector(key)
         declaration_for(key)
-        sel(:table_cell, slug(key))
+        column = slug(key)
+        column == ACTIONS_COLUMN ? sel(:table_row_actions_cell) : sel(:table_cell, column)
       end
     end
 

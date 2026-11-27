@@ -32,7 +32,8 @@ module ActiveAdminPageObjects
 
       def find_row_with(key, text)
         declaration_for(key)
-        cell_css = sel(:table_cell, slug(key))
+        column = slug(key)
+        cell_css = column == ACTIONS_COLUMN ? sel(:table_row_actions_cell) : sel(:table_cell, column)
         rows.find do |row|
           cell = row.first(:css, cell_css, minimum: 0, wait: false, **visibility_of(key))
           cell && text_match?(cell.text, text)

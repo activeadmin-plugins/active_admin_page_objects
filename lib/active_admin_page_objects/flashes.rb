@@ -29,11 +29,16 @@ module ActiveAdminPageObjects
     private
 
     def flash_selector(type)
-      unless type.respond_to?(:to_sym) && TYPES.include?(type.to_sym)
-        raise ArgumentError, "flash type must be one of #{TYPES.inspect}, got #{type.inspect}"
+      unless type.respond_to?(:to_sym) && flash_types.include?(type.to_sym)
+        raise ArgumentError, "flash type must be one of #{flash_types.inspect}, got #{type.inspect}"
       end
 
       sel(:"flash_#{type}")
+    end
+
+    # The types this layout renders. A theme that renders more overrides it.
+    def flash_types
+      TYPES
     end
   end
 end

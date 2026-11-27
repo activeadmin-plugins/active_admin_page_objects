@@ -137,6 +137,8 @@ RSpec.describe ActiveAdminPageObjects::Table do
       expect(row).to have_no_cell(:category, exact_text: "RET")
       expect(row.has_no_cell?(:category, exact_text: "retail", wait: 0)).to be(false)
       expect(row.cell(:email)).to have_text(customer.email)
+      expect(row.cell(:actions)).to have_link("Delete")
+      expect(row).to have_cell(:actions, text: "edit")
     end
 
     it "keeps rows in table order" do
