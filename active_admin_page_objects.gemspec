@@ -12,7 +12,7 @@ Gem::Specification.new do |spec|
   spec.description = "SitePrism pages and sections for vanilla ActiveAdmin 3's layout, index tables, filters, " \
                      "scopes, batch actions, show pages and forms, so system specs call semantic methods " \
                      "instead of CSS selectors."
-  spec.homepage = "https://github.com/senid231/active_admin_page_objects"
+  spec.homepage = "https://github.com/activeadmin-plugins/active_admin_page_objects"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.3"
 
